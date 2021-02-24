@@ -3,15 +3,16 @@
 #include <string.h>
 #include <stdbool.h>
 
+#define TOKEN_BUFFER_SIZE 32
+
 
 void msh_loop();
-void msh_parse(char* line);
+char** msh_parse(char* line);
 
 void msh_loop() {
-	char* line;
+	char* line = NULL;
 	size_t linecap = 0;
 	ssize_t linelen;
-
 	while (true) {
 		printf("msh 0.0 # ");
 		linelen = getline(&line, &linecap, stdin);
@@ -20,17 +21,28 @@ void msh_loop() {
 			exit(-1);
 		}
 		if (feof(stdin)) exit(0);
+
+
+		char** tokens = NULL;
+		tokens = msh_parse(line);
 	}
+	free(line);	// free once as end as getline does realloc
 }
 
-void msh_parse(char* line) {
-	char* cmd[];
+char** msh_parse(char* line) {
+	char** tokens = (char**) malloc(sizeof(char*) * TOKEN_BUFFER_SIZE);
 	char* token;
-	char* tofree = line;
+	size_t tokenLength;
+
+	int tokensRead = 0;
 	while((token = strsep(&line, " ")) != NULL) {
-		printf("Token: %s\n", token);
+		tokenLength = strlen(token);
+		tokens[tokensRead] = (char*) malloc(sizeof(char) * tokenLength + 1);
+		strcpy(tokens[tokensRead], token);
+		tokensRead++;
 	}
-	free(tofree);
+
+	return tokens;
 }
 
 int main(int argc, char* argv[], char* envp[]) {
