@@ -7,14 +7,14 @@
 #include "hashMap.h"
 
 
-struct hm_map* hm_initialise(int (*indexFunc)(struct hm_map* map, void* data), bool (*compFunc)(void* nodeData, void* comp), void (*outFunc)(void* data), void (*freeFunc)(void* data)) {
+struct hm_map* hm_initialise(int (*indexFunc)(struct hm_map* map, void* data), bool (*compFunc)(void* nodeData, void* comp), void (*freeFunc)(void* data), void (*outFunc)(void* data)) {
 	struct hm_map* temp = (struct hm_map*) malloc(sizeof(struct hm_map));
 	temp->bucketNum = HM_DEFAULT_BUCKETS;
 	temp->buckets = (struct ll_linkedList**) malloc(sizeof(struct ll_linkedList*) * temp->bucketNum);
 	temp->indexFunc = indexFunc;
 
 	for (int i = 0; i < temp->bucketNum; i++) {
-		temp->buckets[i] = ll_initialise(compFunc, outFunc, freeFunc);
+		temp->buckets[i] = ll_initialise(compFunc, freeFunc, outFunc);
 	}
 
 	return temp;

@@ -5,7 +5,7 @@
 #include "linkedList.h"
 
 
-struct ll_linkedList* ll_initialise(bool (*compFunc)(void* nodeData, void* comp), void (*outFunc)(void* data), void (*freeFunc)(void* data)) {
+struct ll_linkedList* ll_initialise(bool (*compFunc)(void* nodeData, void* comp), void (*freeFunc)(void* data), void (*outFunc)(void* data)) {
 	struct ll_linkedList* temp = (struct ll_linkedList*) malloc(sizeof(struct ll_linkedList));
 	temp->head = temp->tail = NULL;
 	temp->compFunc = compFunc;

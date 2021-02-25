@@ -25,7 +25,7 @@ typedef struct hm_map {
 } hm_map;
 
 
-struct hm_map* hm_initialise(int (*indexFunc)(struct hm_map* map, void* data), bool (*compFunc)(void* nodeData, void* comp), void (*outFunc)(void* data), void (*freeFunc)(void* data));
+struct hm_map* hm_initialise(int (*indexFunc)(struct hm_map* map, void* data), bool (*compFunc)(void* nodeData, void* comp), void (*freeFunc)(void* data), void (*outFunc)(void* data));
 void hm_insert(struct hm_map* map, void* data);
 bool hm_findNode(struct hm_map* map, void* data);
 void hm_removeNode(struct hm_map* map, void* data);

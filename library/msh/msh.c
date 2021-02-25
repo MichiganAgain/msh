@@ -5,7 +5,31 @@
 #include <unistd.h>
 
 #include "msh.h"
+#include "../datastructures/hashMap.h"
+#include "environmentVariables.h"
 
+
+static hm_map* environmentVariableMap;
+
+void msh_init() {
+    environmentVariableMap = hm_initialise(index_environmentVariable, compare_environmentVariable, free_environmentVariable, output_environmentVariable);
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("HOME"), strdup("THIS IS HOME")));
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("JAVA"), strdup("THIS IS JAVA")));
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("LAVA"), strdup("THIS IS LAVA")));
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("JOHN"), strdup("THIS IS JOHN")));
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("DEAN"), strdup("THIS IS DEAN")));
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("MAIL"), strdup("THIS IS MAIL")));
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("LAWS"), strdup("THIS IS LAWS")));
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("BACK"), strdup("THIS IS BACK")));
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("NACK"), strdup("THIS IS NACK")));
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("REDD"), strdup("THIS IS REDD")));
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("PAWN"), strdup("THIS IS PAWN")));
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("KILL"), strdup("THIS IS KILL")));
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("INTT"), strdup("THIS IS INTT")));
+    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("HOME"), strdup("THIS IS HOME")));
+
+    msh_loop();
+}
 
 void msh_loop() {
     char* line = NULL;
@@ -72,7 +96,7 @@ void msh_execute(char** tokens) {
     }
     else if (pid == 0) { // in child
         execvp(tokens[0], tokens);
-        printf("msh: error executing %s\n", tokens[0]);
+        printf("msh: %s command does not exist\n", tokens[0]);
         exit(EXIT_FAILURE);
     }
     else { // in parent

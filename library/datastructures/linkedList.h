@@ -32,7 +32,7 @@ typedef struct ll_linkedList {
 } ll_linkedList;
 
 
-struct ll_linkedList* ll_initialise(bool (*compFunc)(void* nodeData, void* comp), void (*outFunc)(void* data), void (*freeFunc)(void* data));
+struct ll_linkedList* ll_initialise(bool (*compFunc)(void* nodeData, void* comp), void (*freeFunc)(void* data), void (*outFunc)(void* data));
 void ll_addNode(struct ll_linkedList* list, void* data);
 struct ll_node* ll_findNode(struct ll_linkedList* list, void* comp);
 void ll_free(struct ll_linkedList* list);
