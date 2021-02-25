@@ -6,8 +6,8 @@
 #include <signal.h>
 #include <errno.h>
 
-#include "msh.h"
-#include "signalHandlers.h"
+#include "library/msh/msh.h"
+#include "library/signal/signalHandlers.h"
 
 
 int main(int argc, char* argv[], char* envp[]) {
