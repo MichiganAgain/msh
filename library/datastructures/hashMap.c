@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "linkedList.h"
-#include "hashmap.h"
+#include "hashMap.h"
 
 
 struct hm_map* hm_initialise(int (*indexFunc)(struct hm_map* map, void* data), bool (*compFunc)(void* nodeData, void* comp), void (*outFunc)(void* data), void (*freeFunc)(void* data)) {
