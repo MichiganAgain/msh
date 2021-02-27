@@ -13,6 +13,8 @@
 int main(int argc, char* argv[], char* envp[]) {
 	setSignalHandlers();
 	msh_init();
+    msh_loop();
+    msh_clean();
 
 	return 0;
 }

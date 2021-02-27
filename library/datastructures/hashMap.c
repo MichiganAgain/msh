@@ -1,53 +1,46 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
-#include <string.h>
 
-#include "linkedList.h"
 #include "hashMap.h"
 
+struct hm_hashMap* hm_initialise(indexFunction index, compareKeysFunction compareKeys, freeKeyFunction freeKey, freeValueFunction freeValue, outputFunction output) {
+    struct hm_hashMap* hashMap = (struct hm_hashMap*) malloc(sizeof(hm_hashMap));
+    hashMap->bucketNum = HM_DEFAULT_BUCKETS;
+    hashMap->buckets = (struct hmll_linkedList**) malloc(sizeof(struct hmll_linkedList*) * hashMap->bucketNum);
+    hashMap->index = index;
 
-struct hm_map* hm_initialise(int (*indexFunc)(struct hm_map* map, void* data), bool (*compFunc)(void* nodeData, void* comp), void (*freeFunc)(void* data), void (*outFunc)(void* data)) {
-	struct hm_map* temp = (struct hm_map*) malloc(sizeof(struct hm_map));
-	temp->bucketNum = HM_DEFAULT_BUCKETS;
-	temp->buckets = (struct ll_linkedList**) malloc(sizeof(struct ll_linkedList*) * temp->bucketNum);
-	temp->indexFunc = indexFunc;
+    for (int i = 0; i < hashMap->bucketNum; i++)
+        hashMap->buckets[i] = hmll_initialise(compareKeys, freeKey, freeValue, output);
 
-	for (int i = 0; i < temp->bucketNum; i++) {
-		temp->buckets[i] = ll_initialise(compFunc, freeFunc, outFunc);
-	}
-
-	return temp;
+    return hashMap;
 }
 
-void hm_insert(struct hm_map* map, void* data) {
-	struct ll_node* temp;
-	int index = map->indexFunc(map, data);
-	if ((temp = ll_findNode(map->buckets[index], data)) != NULL) ll_replaceNode(map->buckets[index], temp, data);
-	else ll_addNode(map->buckets[index], data);
+void hm_insert(struct hm_hashMap* hashMap, void* key, void* value) {
+    int index = hashMap->index(key) % hashMap->bucketNum;
+    hmll_remove(hashMap->buckets[index], key);
+    hmll_insert(hashMap->buckets[index], key, value);
 }
 
-bool hm_findNode(struct hm_map* map, void* data) {
-	int index = map->indexFunc(map, data);
-	return ll_findNode(map->buckets[index], data);
+void* hm_find(struct hm_hashMap* hashMap, void* key) {
+    int index = hashMap->index(key) % hashMap->bucketNum;
+    return hmll_find(hashMap->buckets[index], key);
 }
 
-void hm_removeNode(struct hm_map* map, void* data) {
-	int index = map->indexFunc(map, data);
-	ll_removeNode(map->buckets[index], data);
+void hm_remove(struct hm_hashMap* hashMap, void* key) {
+    int index = hashMap->index(key) % hashMap->bucketNum;
+    hmll_remove(hashMap->buckets[index], key);
 }
 
-void hm_output(struct hm_map* map) {
-	for (int i = 0; i < map->bucketNum; i++) {
-		printf("Bucket %d: ", i);
-		ll_output(map->buckets[i]);
-		printf("\n");
-	}
+void hm_output(struct hm_hashMap* hashMap) {
+    for (int i = 0; i < hashMap->bucketNum; i++) {
+        printf("Bucket: %d\n", i);
+        hmll_output(hashMap->buckets[i]);
+    }
 }
 
-void hm_free(struct hm_map* map) {
-	for (int i = 0; i < map->bucketNum; i++) ll_free(map->buckets[i]);
-	free(map->buckets);
-	free(map);
-}
+void hm_free(struct hm_hashMap* hashMap) {
+    for (int i = 0; i < hashMap->bucketNum; i++)
+        hmll_free(hashMap->buckets[i]);
 
+    free(hashMap);
+}

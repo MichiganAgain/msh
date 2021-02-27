@@ -1,45 +1,37 @@
-#ifndef LINKED_LIST_H
-#define LINKED_LIST_H
-
-/*
-    ALL DATA MUST BE ALLOCATED ON HEAD NOT STACK
-        -   Else when removing the node it will try and free a value that is on the stack
-        -   It will cause undefined behaviour if you do not do this which very much ====== bad
-
-	The following functions will need to be manually provided:
-        -   Compare function, takes node data* in list and data* you are looking for
-		-	Free function, takes pointer to data and frees data pointed to by it, not the actual pointer itself
-            -   i.e, free(apple_struct* as), you won't do free(as), rather free(as->heapData)
-        -   OPTIONAL
-            -   Output function, takes void* to data and casts
-*/
+#ifndef HM_LINKED_LIST_H
+#define HM_LINKED_LIST_H
 
 #include <stdbool.h>
 
+typedef bool (*compareKeysFunction)(void* k1, void* k2);
+typedef void (*freeKeyFunction)(void* key);     // Gives opportunity to free key if it was allocated on heap
+typedef void (*freeValueFunction)(void* value); // Gives opportunity to free value if it was allocated on heap
+typedef void (*outputFunction)(void* key, void* value);
 
-typedef struct ll_node {
-	void* data;
-    struct ll_node* prev;
-	struct ll_node* next;
-} ll_node;
+struct hmll_valueNode {
+    void* value;
+} hmll_valueNode;
 
-typedef struct ll_linkedList {
-    struct ll_node* head;
-    struct ll_node* tail;
-    bool (*compFunc)(void* nodeData, void* comp);
-    void (*outFunc)(void* data);
-    void (*freeFunc)(void* data);   // free only data *in* data, not data.  If nothing, set as NULL
-} ll_linkedList;
+struct hmll_keyNode {
+    void* key;
+    struct hmll_valueNode* value;
+    struct hmll_keyNode *prev, *next;
+} hmll_keyNode;
+
+struct hmll_linkedList {
+    struct hmll_keyNode *head, *tail;
+    compareKeysFunction compareKeys;
+    freeKeyFunction freeKey;
+    freeValueFunction freeValue;
+    outputFunction output;
+} hmll_linkedList;
 
 
-struct ll_linkedList* ll_initialise(bool (*compFunc)(void* nodeData, void* comp), void (*freeFunc)(void* data), void (*outFunc)(void* data));
-void ll_addNode(struct ll_linkedList* list, void* data);
-struct ll_node* ll_findNode(struct ll_linkedList* list, void* comp);
-void ll_free(struct ll_linkedList* list);
-void ll_output(struct ll_linkedList* list);
-void ll_removeNode(struct ll_linkedList* list, void* comp);
-void ll_replaceNode(struct ll_linkedList* list, struct ll_node* node, void* data);
-
+struct hmll_linkedList* hmll_initialise(compareKeysFunction, freeKeyFunction, freeValueFunction, outputFunction);
+void hmll_insert(struct hmll_linkedList* list, void* key, void* value);
+void* hmll_find(struct hmll_linkedList* list, void* key);
+void hmll_remove(struct hmll_linkedList* list, void* key);
+void hmll_output(struct hmll_linkedList* list);
+void hmll_free(struct hmll_linkedList* list);
 
 #endif
-

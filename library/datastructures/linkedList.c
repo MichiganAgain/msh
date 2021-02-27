@@ -1,89 +1,86 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 
 #include "linkedList.h"
 
+struct hmll_linkedList* hmll_initialise(compareKeysFunction compareKeys, freeKeyFunction freeKey, freeValueFunction freeValue, outputFunction output) {
+    struct hmll_linkedList* linkedList = (struct hmll_linkedList*) malloc(sizeof(struct hmll_linkedList));
+    linkedList->head = linkedList->tail = NULL;
+    linkedList->compareKeys = compareKeys;
+    linkedList->freeKey = freeKey;
+    linkedList->freeValue = freeValue;
+    linkedList->output = output;
 
-struct ll_linkedList* ll_initialise(bool (*compFunc)(void* nodeData, void* comp), void (*freeFunc)(void* data), void (*outFunc)(void* data)) {
-	struct ll_linkedList* temp = (struct ll_linkedList*) malloc(sizeof(struct ll_linkedList));
-	temp->head = temp->tail = NULL;
-	temp->compFunc = compFunc;
-	temp->outFunc = outFunc;
-	temp->freeFunc = freeFunc;
-
-	return temp;
+    return linkedList;
 }
 
-void ll_addNode(struct ll_linkedList* list, void* data) {
-	struct ll_node* temp = (struct ll_node*) malloc(sizeof(struct ll_node));
-	temp->data = data;
-	temp->prev = temp->next = NULL;
+void hmll_insert(struct hmll_linkedList* list, void* key, void* value) {
+    struct hmll_valueNode* valueNode = (struct hmll_valueNode*) malloc(sizeof(struct hmll_valueNode));
+    struct hmll_keyNode* keyNode = (struct hmll_keyNode*) malloc(sizeof(struct hmll_keyNode));
 
-	if (list->head == NULL && list->tail == NULL) list->head = list->tail = temp;
-	else {
-		temp->prev = list->tail;
-		list->tail->next = temp;
-		list->tail = temp;
-	}
+    valueNode->value = value;
+
+    keyNode->key = key;
+    keyNode->value = valueNode;
+    keyNode->next = NULL;
+
+    if (list->head == NULL) {
+        list->head = list->tail = keyNode;
+        keyNode->prev = NULL;
+    }
+    else {
+        keyNode->prev = list->tail;
+        list->tail->next = keyNode;
+        list->tail = keyNode;
+    }
 }
 
-ll_node* ll_findNode(struct ll_linkedList* list, void* comp) {
-	struct ll_node* temp = list->head;
-	while (temp) {
-		if (list->compFunc(temp->data, comp)) return temp;
-		temp = temp->next;
-	}
+void* hmll_find(struct hmll_linkedList* list, void* key) {
+    struct hmll_keyNode* tempKeyNode = list->head;
+    while (tempKeyNode) {
+        if (list->compareKeys(tempKeyNode->key, key))
+            return tempKeyNode->value->value;
+        tempKeyNode = tempKeyNode->next;
+    }
 
-	return NULL;
+    return NULL;
 }
 
-void ll_free(struct ll_linkedList* list) {
-	struct ll_node* temp;
-	while (list->head) {
-		temp = list->head->next;
-		if (list->freeFunc) list->freeFunc(list->head->data);
-		free(list->head->data);
-		free(list->head);
-		list->head = temp;
-	}
-	free(list);
+void hmll_remove(struct hmll_linkedList* list, void* key) {
+    struct hmll_keyNode* tempKeyNode = list->head;
+    while (tempKeyNode) {
+        if (list->compareKeys(tempKeyNode->key, key)) {
+            if (tempKeyNode == list->tail) list->tail = list->tail->prev;
+            if (tempKeyNode == list->head) list->head = NULL;
+            if (tempKeyNode->prev) tempKeyNode->prev->next = tempKeyNode->next;
+            if (tempKeyNode->next) tempKeyNode->next->prev = tempKeyNode->prev;
+            if (list->freeKey) list->freeKey(tempKeyNode->key);
+            if (list->freeValue) list->freeValue(tempKeyNode->value->value);
+            free(tempKeyNode->value);
+            free(tempKeyNode);
+            return;
+        }
+        tempKeyNode = tempKeyNode->next;
+    }
 }
 
-void ll_output(struct ll_linkedList* list) {
-	if (list->outFunc == NULL) {
-		printf("There is no output function defined for this list type\n");
-		return;
-	}
-
-	struct ll_node* temp = list->head;
-	while (temp) {
-		list->outFunc(temp->data);
-		temp = temp->next;
-	}
+void hmll_output(struct hmll_linkedList* list) {
+    struct hmll_keyNode* tempKeyNode = list->head;
+    while (tempKeyNode) {
+        list->output(tempKeyNode->key, tempKeyNode->value->value);
+        tempKeyNode = tempKeyNode->next;
+    }
 }
 
-void ll_removeNode(struct ll_linkedList* list, void* comp) {
-	struct ll_node* curr = list->head;
-	struct ll_node* temp;
-	while (curr) {
-		if (list->compFunc(curr->data, comp)) {
-			if (curr->prev != NULL) curr->prev->next = curr->next;
-			if (curr->next != NULL) curr->next->prev = curr->prev;
-			if (list->head == list->tail) list->head = list->tail = NULL;
-
-			temp = curr->next;
-			if (list->freeFunc) list->freeFunc(curr->data);
-			free(curr->data);
-			free(curr);
-			curr = temp;
-		}
-		else curr = curr->next;
-	}
+void hmll_free(struct hmll_linkedList* list) {
+    struct hmll_keyNode* tempKeyNode;
+    while (list->head) {
+        tempKeyNode = list->head->next;
+        if (list->freeKey) list->freeKey(list->head->key);
+        if (list->freeValue) list->freeValue(list->head->value->value);
+        free(list->head->value);
+        free(list->head);
+        list->head = tempKeyNode;
+    }
+    free(list);
 }
-
-void ll_replaceNode(struct ll_linkedList* list, struct ll_node* node, void* data) {
-	if (list->freeFunc) list->freeFunc(node->data);
-	node->data = data;
-}
-

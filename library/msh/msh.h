@@ -8,9 +8,12 @@
 
 
 void msh_init();
+void msh_init_builtins();
 void msh_loop();
 void msh_printPrompt();
 char** msh_parse(char* line);
 void msh_execute(char** tokens);
+void msh_execute_builtin(char** tokens);
+void msh_clean();
 
 #endif

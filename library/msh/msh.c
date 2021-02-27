@@ -7,28 +7,24 @@
 #include "msh.h"
 #include "../datastructures/hashMap.h"
 #include "environmentVariables.h"
+#include "builtins.h"
 
 
 static hm_map* environmentVariableMap;
+static hm_map* builtinMap;
+
 
 void msh_init() {
     environmentVariableMap = hm_initialise(index_environmentVariable, compare_environmentVariable, free_environmentVariable, output_environmentVariable);
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("HOME"), strdup("THIS IS HOME")));
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("JAVA"), strdup("THIS IS JAVA")));
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("LAVA"), strdup("THIS IS LAVA")));
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("JOHN"), strdup("THIS IS JOHN")));
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("DEAN"), strdup("THIS IS DEAN")));
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("MAIL"), strdup("THIS IS MAIL")));
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("LAWS"), strdup("THIS IS LAWS")));
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("BACK"), strdup("THIS IS BACK")));
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("NACK"), strdup("THIS IS NACK")));
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("REDD"), strdup("THIS IS REDD")));
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("PAWN"), strdup("THIS IS PAWN")));
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("KILL"), strdup("THIS IS KILL")));
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("INTT"), strdup("THIS IS INTT")));
-    hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("HOME"), strdup("THIS IS HOME")));
+    builtinMap = hm_initialise(index_builtin, compare_builtin, free_builtin, output_builtin);
 
-    msh_loop();
+    // hm_insert(builtinMap, createShellBuiltin(strdup("cd"), builtin_cd));
+    hm_output(builtinMap);
+    hm_insert(environmentVariableMap, strdup("HOME"), strdup("THIS IS HOME"));
+    // hm_insert(environmentVariableMap, createEnvironmentVariable(strdup("JAVA"), strdup("THIS IS JAVA")));
+}
+
+void msh_init_builtins() {
 }
 
 void msh_loop() {
@@ -88,6 +84,9 @@ char** msh_parse(char* line) {
 }
 
 void msh_execute(char** tokens) {
+    struct builtin* bptr = hm_findNode(builtinMap, "cd");
+    if (bptr) printf("Found cd command\n");
+    else printf("Could not find cd command\n");
     pid_t pid = fork();
 
     if (pid == -1) {
@@ -102,4 +101,14 @@ void msh_execute(char** tokens) {
     else { // in parent
         waitpid(pid, NULL, 0);
     }
+}
+
+void msh_execute_builtin(char** tokens) {
+
+}
+
+void msh_clean() {
+    hm_free(environmentVariableMap);
+    hm_free(builtinMap);
+    printf("\n");
 }
