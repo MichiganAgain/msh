@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <termios.h>
 #include <unistd.h>
+
 #include "terminalHandler.h"
+
 
 void term_error(char* errmsg) {
 	printf("%s\n", errmsg);
@@ -14,7 +16,7 @@ void term_ensureTerminalDevice() {
 		term_error("Standard input is not connected to a terminal device file");
 }
 
-static void term_enableFlag(tcflag_t flags) {
+void term_enableLocalFlag(tcflag_t flags) {
 	struct termios termSettings;
 	int result;
 
@@ -27,7 +29,7 @@ static void term_enableFlag(tcflag_t flags) {
 		term_error("Failed to set terminal attributes");
 }
 
-static void term_disableFlag(tcflag_t flags) {
+void term_disableLocalFlag(tcflag_t flags) {
 	struct termios termSettings;
 	int result;
 
@@ -40,33 +42,32 @@ static void term_disableFlag(tcflag_t flags) {
 		term_error("Failed to set terminal attributes");
 }
 
+void term_getCurrentTerm(struct termios* term) {
+	int result;
 
-void term_enableCanonicalMode() {
-	term_enableFlag(ICANON);
+	term_ensureTerminalDevice();
+	if ((result = tcgetattr(STDIN_FILENO, term)) != 0)
+		term_error("Failed to get terminal attributes");
 }
 
-void term_disableCanonicalMode() {
-	term_disableFlag(ICANON);
+void term_setCurrentTerm(struct termios* term) {
+	int result;
+	
+	term_ensureTerminalDevice();
+	if ((result = tcsetattr(STDIN_FILENO,TCSADRAIN, term)) != 0)
+		term_error("Failed to set terminal attributes");
 }
 
-void term_enableEcho() {
-	term_enableFlag(ECHO);
-}
-
-void term_disableEcho() {
-	term_disableFlag(ECHO);
-}
-
-void term_saveTerm() {
+void term_saveOriginalTerm() {
 	int result;
 	term_ensureTerminalDevice();
-	if ((result = tcgetattr(STDIN_FILENO, &savedTerm)) != 0)
-		term_error("Failed to restore terminal attributes");
+	if ((result = tcgetattr(STDIN_FILENO, &originalTerm)) != 0)
+		term_error("Failed to save terminal attributes");
 }
 
-void term_restoreTerm() {
+void term_restoreOriginalTerm() {
 	int result;
 	term_ensureTerminalDevice();
-	if ((result = tcsetattr(STDIN_FILENO,TCSADRAIN, &savedTerm)) != 0)
+	if ((result = tcsetattr(STDIN_FILENO,TCSADRAIN, &originalTerm)) != 0)
 		term_error("Failed to restore terminal attributes");
 }

@@ -9,6 +9,7 @@
 
 void msh_init();
 static void msh_init_builtins();
+static void msh_init_aliases();
 void msh_loop();
 char* msh_readline(FILE* filedes);
 static void msh_printPrompt();

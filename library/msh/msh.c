@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <termios.h>
 
 #include "msh.h"
 #include "../terminal/terminalHandler.h"
@@ -21,15 +22,15 @@ static struct hm_hashMap* builtinMap;
 
 
 void msh_init() {
-	term_saveTerm();
-	term_disableCanonicalMode();
-	term_disableEcho();
+	term_saveOriginalTerm();
+	term_disableLocalFlag(ICANON | ECHO | ISIG);
 
     environmentVariableMap = hm_initialise(index_environmentVariable, compare_environmentVariable, NULL, NULL, output_environmentVariable);
     aliasMap = hm_initialise(index_alias, compare_alias, NULL, NULL, output_alias);
     builtinMap = hm_initialise(index_builtin, compare_builtin, NULL, NULL, output_builtin);
 
     msh_init_builtins();
+	msh_init_aliases();
 }
 
 static void msh_init_builtins() {
@@ -37,20 +38,23 @@ static void msh_init_builtins() {
     hm_insert(builtinMap, "alias", builtin_alias);
 }
 
+static void msh_init_aliases() {
+	hm_insert(aliasMap, "export", "export me out of debt");
+}
+
 void msh_loop() {
-    char* line = NULL;
     bool loop = true;
     while (loop) {
         msh_printPrompt();
 
-        line = msh_readline(stdin);
-
+        char* line = msh_readline(stdin);
         char** tokens = msh_parse(line);
         //for (int i = 0; tokens[i] != NULL; i++) printf("Token [%d] = %s\n", i, tokens[i]);
+
         if (strlen(line) > 0) msh_execute(tokens);
         free(tokens);
+		free(line);
     }
-    free(line);
 }
 
 char* msh_readline(FILE* filedes) {
@@ -72,13 +76,18 @@ char* msh_readline(FILE* filedes) {
         	line[characterIndex++] = (char)c;
 		}
 		else {
-			printf("Control char entered: %d\n", c);
+			if (c == TERM_EOF && characterIndex == 0) exit(0);
+			else if (c == TERM_KEY_DELETE && characterIndex > 0) {
+				line[characterIndex--] = '\0';
+				term_cursor_left(1);
+				term_erase_line();
+			}
+
 			fflush(stdin);	// else flush stdin to get rid of any additional characters like ^[D
 		}
     }
     line[characterIndex] = '\0';
 	if (c == '\n') printf("\n");
-    else if (c == EOF) exit(0);
     return line;
 }
 
@@ -145,8 +154,16 @@ static char** msh_parse(char* line) {
 }
 
 static void msh_execute(char** tokens) {
-    pid_t pid = fork();
+	struct termios modifiedTerm;
+	term_getCurrentTerm(&modifiedTerm);
+	term_restoreOriginalTerm();
 
+	char* aliasValue = NULL;
+	if ((aliasValue = hm_find(aliasMap, tokens[0])) != NULL) {
+		printf("You entered an alias: %s\tvalue: %s\n", tokens[0], aliasValue);
+	}
+
+    pid_t pid = fork();
     if (pid == -1) {
         printf("Error forking self\n");
         exit(-1);
@@ -159,11 +176,14 @@ static void msh_execute(char** tokens) {
     else { // in parent
         waitpid(pid, NULL, 0);
     }
+
+	term_setCurrentTerm(&modifiedTerm);
 }
 
 void msh_clean() {
     hm_free(environmentVariableMap);
     hm_free(aliasMap);
     hm_free(builtinMap);
+	term_restoreOriginalTerm();
     printf("\n");
 }
