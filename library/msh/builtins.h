@@ -3,19 +3,14 @@
 
 #include "../datastructures/HashMap/hashMap.h"
 
-typedef struct builtin {
-    char* command;
-    void (*exeFunc)();
-} builtin;
 
-struct builtin* createShellBuiltin(char* command, void (*exeFunc)());
-int index_builtin(struct hm_map* map, void* d);
-bool compare_builtin(void* nd, void* d);
-void free_builtin(void* d);
-void output_builtin(void* d);
+int index_builtin(void* key);
+bool compare_builtin(void* k1, void* k2);
+void output_builtin(void* key, void* value);
+
 
 // builtin functions
 void builtin_cd();
-
+void builtin_alias();
 
 #endif

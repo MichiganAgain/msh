@@ -5,38 +5,34 @@
 #include "builtins.h"
 
 
-struct builtin* createShellBuiltin(char* command, void (*exeFunc)()) {
-    struct builtin* temp = (struct builtin*) malloc(sizeof(struct builtin));
-    temp->command = command;
-    temp->exeFunc = exeFunc;
-
-    return temp;
-}
-
-int index_builtin(struct hm_map* map, void* keyData) {
-    char* key = (char*) keyData;
+int index_builtin(void* key) {
+    char* keyString = (char*) key;
     int total = 0;
-    for (int i = 0; i < strlen(key); i++) total += data->command[i];
-    return total % map->bucketNum;
+    for (int i = 0; i < strlen(keyString); i++) total += keyString[i];
+
+    return total;
 }
 
-bool compare_builtin(void* nk, void* k) {
-    char* nodeKey = (char*) nk;
-    char* key = (char*) k;
+bool compare_builtin(void* k1, void* k2) {
+    char* keyString1 = (char*) k1;
+    char* keyString2 = (char*) k2;
 
-    return (!strcmp(nodeKey, key)) ? true: false;
+    return (!strcmp(keyString1, keyString2)) ? true: false;
 }
 
-void free_builtin(void* d) {
-    builtin* data = (builtin*) d;
-    free(data->command);
+void output_builtin(void* key, void* value) {
+    char* keyString = (char*) key;
+
+    printf("Built in name: %s\tFunction pointer: %p\n", keyString, value);
 }
 
-void output_builtin(void* d) {
-    builtin* data = (builtin*) d;
-    printf("command: %s\tfunction: %p\n", data->command, data->exeFunc);
-}
+
+// built in functions
 
 void builtin_cd() {
+    
+}
+
+void builtin_alias() {
     
 }

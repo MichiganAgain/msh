@@ -6,36 +6,24 @@
 #include "environmentVariables.h"
 
 
-struct environmentVariable* createEnvironmentVariable(char* name, char* value) {
-    struct environmentVariable* ev = (struct environmentVariable*) malloc(sizeof(struct environmentVariable));
-    ev->name = name;
-    ev->value = value;
-
-    return ev;
-}
-
-int index_environmentVariable(struct hm_map* map, void* d) {
-    environmentVariable* data = (environmentVariable*) d;
+int index_environmentVariable(void* key) {
+    char* keyString = (char*) key;
     int total = 0;
-    for (int i = 0; i < strlen(data->name); i++) total += data->name[i];
+    for (int i = 0; i < strlen(keyString); i++) total += keyString[i];
 
-    return total % map->bucketNum;
+    return total;
 }
 
-bool compare_environmentVariable(void* nd, void* d) {
-    environmentVariable* nodeData = (environmentVariable*) nd;
-    environmentVariable* data = (environmentVariable*) d;
+bool compare_environmentVariable(void* k1, void* k2) {
+    char* keyString1 = (char*) k1;
+    char* keyString2 = (char*) k2;
 
-    return (!strcmp(nodeData->name, data->name)) ? true: false;
+    return (!strcmp(keyString1, keyString2)) ? true: false;
 }
 
-void free_environmentVariable(void* d) {
-    environmentVariable* data = (environmentVariable*) d;
-    free(data->name);
-    free(data->value);
-}
+void output_environmentVariable(void* key, void* value) {
+    char* keyString = (char*) key;
+    char* valueString = (char*) value;
 
-void output_environmentVariable(void* d) {
-    environmentVariable* data = (environmentVariable*) d;
-    printf("Variable name: %s\tVariable value: %s\n", data->name, data->value);
+    printf("Name: %s\tValue: %s\n", keyString, valueString);
 }
