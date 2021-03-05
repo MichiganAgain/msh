@@ -71,3 +71,22 @@ void term_restoreOriginalTerm() {
 	if ((result = tcsetattr(STDIN_FILENO,TCSADRAIN, &originalTerm)) != 0)
 		term_error("Failed to restore terminal attributes");
 }
+
+
+int term_handleEscapeSequence(int c) {
+	char seq[3];
+
+	if (read(STDIN_FILENO, &seq[0], 1) != 1) return TERM_ESCAPE_CHAR;
+	if (read(STDIN_FILENO, &seq[1], 1) != 1) return TERM_ESCAPE_CHAR;
+
+	if (seq[0] == '[') {
+		switch (seq[1]) {
+			case 'A': return TERM_ARROW_UP;
+			case 'B': return TERM_ARROW_DOWN;
+			case 'C': return TERM_ARROW_RIGHT;
+			case 'D': return TERM_ARROW_LEFT;
+		}
+	}
+
+	return TERM_UNKNOWN;
+}

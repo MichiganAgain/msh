@@ -13,7 +13,7 @@
 #include "builtins.h"
 #include "aliases.h"
 
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 128
 
 
 static struct hm_hashMap* environmentVariableMap;
@@ -22,9 +22,11 @@ static struct hm_hashMap* builtinMap;
 
 
 void msh_init() {
+	setvbuf(stdin, NULL, _IONBF, 0);	// disable input buffering
+	setvbuf(stdout, NULL, _IONBF, 0);	// disable output buffering
 	term_saveOriginalTerm();
 	term_disableLocalFlag(ICANON | ECHO | ISIG);
-
+	
     environmentVariableMap = hm_initialise(index_environmentVariable, compare_environmentVariable, NULL, NULL, output_environmentVariable);
     aliasMap = hm_initialise(index_alias, compare_alias, NULL, NULL, output_alias);
     builtinMap = hm_initialise(index_builtin, compare_builtin, NULL, NULL, output_builtin);
@@ -48,45 +50,97 @@ void msh_loop() {
         msh_printPrompt();
 
         char* line = msh_readline(stdin);
-        char** tokens = msh_parse(line);
-        //for (int i = 0; tokens[i] != NULL; i++) printf("Token [%d] = %s\n", i, tokens[i]);
 
-        if (strlen(line) > 0) msh_execute(tokens);
-        free(tokens);
-		free(line);
+		if (line) {
+			char** tokens = msh_parse(line);
+			//for (int i = 0; tokens[i] != NULL; i++) printf("Token [%d] = %s\n", i, tokens[i]);
+
+			if (strlen(line) > 0) msh_execute(tokens);
+			free(tokens);
+			free(line);
+		}
+		else loop = false;
     }
 }
 
+static void msh_redraw(char* line) {
+	term_erase_line();
+	int cursorShifts = 0;
+	while (*line != '\0') {	
+		if (!iscntrl(*line)) {
+			putchar(*line);
+			cursorShifts++;
+		}
+		line++;
+	}
+	if (cursorShifts > 0) term_cursor_left(cursorShifts);
+}
+
 char* msh_readline(FILE* filedes) {
-    unsigned int characterIndex = 0;    // current free index
+	int cursorIndex = 0;
     unsigned int currentBufferSize = BUFFER_SIZE;
     char* line = (char*) malloc(sizeof(char) * currentBufferSize);
+	*line = '\0';
 
     int c;
     while ((c = getc(filedes)) != '\n') {
 		if (!iscntrl(c)) {
-			putchar(c);	// if is a printable character
-			if (characterIndex + 1 >= currentBufferSize) {	// +1 for '\0' after while loop
+			if (strlen(line) + 1 >= currentBufferSize) {	// +1 for '\0'
 				currentBufferSize *= 2;
 				char* temp = (char*) malloc(sizeof(char) * currentBufferSize);
-				strncpy(temp, line, characterIndex);
+				strncpy(temp, line, strlen(line) + 1); // +1 for '\0'
 				free(line);
 				line = temp;
 			}
-        	line[characterIndex++] = (char)c;
+
+			msh_shiftString(&line[cursorIndex], &line[cursorIndex + 1]);
+			line[cursorIndex] = (char)c;
+			msh_redraw(&line[cursorIndex]);
+			cursorIndex++;
+			term_cursor_right(1);
 		}
 		else {
-			if (c == TERM_EOF && characterIndex == 0) exit(0);
-			else if (c == TERM_KEY_DELETE && characterIndex > 0) {
-				line[characterIndex--] = '\0';
-				term_cursor_left(1);
-				term_erase_line();
+			if (c == TERM_EOF && strlen(line) == 0) {
+				free(line);
+				return NULL;
 			}
+			else if (c == TERM_KEY_DELETE) {
+				if (cursorIndex > 0) {
+					msh_shiftString(&line[cursorIndex], &line[cursorIndex - 1]);
+					term_cursor_left(1);
+					cursorIndex--;
+					msh_redraw(&line[cursorIndex]);
+				}
+			}
+			else {
+				int key = term_handleEscapeSequence(c);
+				// printf("key: %d\n", key);
 
+				switch (key) {
+					case TERM_ARROW_UP:
+						break;
+					case TERM_ARROW_RIGHT:
+						if (cursorIndex < strlen(line)) {
+							term_cursor_right(1);
+							cursorIndex++;
+						}
+						break;
+					case TERM_ARROW_DOWN:
+						break;
+					case TERM_ARROW_LEFT:
+						if (cursorIndex > 0) {
+							term_cursor_left(1);
+							cursorIndex--;
+						}
+						break;
+					default:
+						break;
+				}
+			}
 			fflush(stdin);	// else flush stdin to get rid of any additional characters like ^[D
 		}
     }
-    line[characterIndex] = '\0';
+
 	if (c == '\n') printf("\n");
     return line;
 }
@@ -94,8 +148,6 @@ char* msh_readline(FILE* filedes) {
 static void msh_printPrompt() {
     printf("msh 0.0 # ");
 }
-
-static void msh_shiftString();
 
 static char* msh_extractToken(char** line) {
     char* originalLine = *line;
@@ -111,7 +163,7 @@ static char* msh_extractToken(char** line) {
             (*line)++;
             return originalLine;
         }
-        else if ((c == '"' && inSpeech) || (c == '\'' && inApostraphe)) {
+        else if ((c == '"' && inSpeech) || (c == '\'' && inApostraphe)) { // when found terminating char
             *firstQuotationAppearance = '\e';
             **line = '\e';
             inApostraphe = inSpeech = false;
@@ -130,6 +182,30 @@ static char* msh_extractToken(char** line) {
     }
 
     return originalLine;
+}
+
+static void msh_shiftString(char* stringToShift, char* shiftPoint) {
+	int pointerDifference = shiftPoint - stringToShift;
+	char c;
+
+	if (pointerDifference == 0) return;
+	if (pointerDifference < 0) {	// shifting to the left (string to shift is to the right of the shift point)
+		while ((c = *(stringToShift)) != '\0') { // ++string so can -- at end to set another null char
+			*(stringToShift + pointerDifference) = c;
+			stringToShift++;
+		}
+		*(stringToShift + pointerDifference) = '\0';
+	}
+	else { // shifting to the right (string to shift is to the left of the shift point)
+		char* endOfStringIndex = stringToShift;
+		while (*endOfStringIndex != '\0') endOfStringIndex++;
+
+		while (endOfStringIndex >= stringToShift) {
+			c = *endOfStringIndex;
+			*(endOfStringIndex + pointerDifference) = c;
+			endOfStringIndex--;
+		}
+	}
 }
 
 static char** msh_parse(char* line) {

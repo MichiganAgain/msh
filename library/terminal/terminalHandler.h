@@ -5,13 +5,18 @@
 #include <termios.h>
 #include <stdbool.h>
 
-#define TERM_ESCAPE_HEX "\x1b"
 
 #define TERM_EOF 4
+#define TERM_ESCAPE_CHAR 0x1b
 #define TERM_KEY_DELETE 127
 
-#define term_cursor_left(x) printf(TERM_ESCAPE_HEX "[%dD", x);
-#define term_erase_line() printf(TERM_ESCAPE_HEX "[K");
+#define term_cursor_left(x) printf("\x1b[%dD", x);
+#define term_cursor_right(x) printf("\x1b[%dC", x);
+#define term_erase_line() printf("\x1b[K");
+#define term_save_cursor() printf("\x1b[s");
+#define term_restore_cursor() printf("\x1b[u");
+
+enum keys {TERM_ARROW_UP, TERM_ARROW_RIGHT, TERM_ARROW_DOWN, TERM_ARROW_LEFT, TERM_UNKNOWN};
 
 static struct termios originalTerm;
 
@@ -23,5 +28,7 @@ void term_getCurrentTerm(struct termios* term);
 void term_setCurrentTerm(struct termios* term);
 void term_saveOriginalTerm();
 void term_restoreOriginalTerm();
+
+int term_handleEscapeSequence(int c);
 
 #endif

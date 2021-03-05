@@ -1,0 +1,3 @@
+After cursor has been moved to a position ^ e.g he^llo, the cursor position will be index 2, ie it will point to the first ‘l’ character.  When you type a letter, and before anything is displayed, you need to shift the internal buffer beginning at the cursor pointer index, ie the first l will be shifted in this case, so that the new character is inserted in-between the current ones and then you need to increment the index the cursor is pointing to.
+
+Now the internal representation is complete you need to save the current cursor index pointer so it can be restored, move it to the beginning of the left, yet after the prompt, and clear the line after the cursor.  Then redraw the internal buffer before restoring the cursor index position.
