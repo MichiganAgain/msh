@@ -4,6 +4,7 @@
 #include "../datastructures/HashMap/hashMap.h"
 
 
+// Functions provided for hash map / linked list
 int index_builtin(void* key);
 bool compare_builtin(void* k1, void* k2);
 void output_builtin(void* key, void* value);

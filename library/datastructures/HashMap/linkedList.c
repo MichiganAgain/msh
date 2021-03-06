@@ -1,8 +1,16 @@
+/*
+	This linked list is heavily modified for use by the hash map, and is not really
+	meant to be used as a standalone linked list.  Hence why it is in the HashMap directory.
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "linkedList.h"
 
+/*
+	Create and initialise linked list struct and set function pointer values
+*/
 struct hmll_linkedList* hmll_initialise(compareKeysFunction compareKeys, freeKeyFunction freeKey, freeValueFunction freeValue, outputFunction output) {
     struct hmll_linkedList* linkedList = (struct hmll_linkedList*) malloc(sizeof(struct hmll_linkedList));
     linkedList->head = linkedList->tail = NULL;
@@ -14,6 +22,9 @@ struct hmll_linkedList* hmll_initialise(compareKeysFunction compareKeys, freeKey
     return linkedList;
 }
 
+/*
+	Insert key and value into linked list
+*/
 void hmll_insert(struct hmll_linkedList* list, void* key, void* value) {
     struct hmll_valueNode* valueNode = (struct hmll_valueNode*) malloc(sizeof(struct hmll_valueNode));
     struct hmll_keyNode* keyNode = (struct hmll_keyNode*) malloc(sizeof(struct hmll_keyNode));
@@ -35,6 +46,9 @@ void hmll_insert(struct hmll_linkedList* list, void* key, void* value) {
     }
 }
 
+/*
+	Find key node and return value it points to
+*/
 void* hmll_find(struct hmll_linkedList* list, void* key) {
     struct hmll_keyNode* tempKeyNode = list->head;
     while (tempKeyNode) {
@@ -46,6 +60,9 @@ void* hmll_find(struct hmll_linkedList* list, void* key) {
     return NULL;
 }
 
+/*
+	Remove key and value node from linked list
+*/
 void hmll_remove(struct hmll_linkedList* list, void* key) {
     struct hmll_keyNode* tempKeyNode = list->head;
     while (tempKeyNode) {
@@ -64,6 +81,9 @@ void hmll_remove(struct hmll_linkedList* list, void* key) {
     }
 }
 
+/*
+	Output linked list from user provided function pointer
+*/
 void hmll_output(struct hmll_linkedList* list) {
     struct hmll_keyNode* tempKeyNode = list->head;
     while (tempKeyNode) {
@@ -72,6 +92,9 @@ void hmll_output(struct hmll_linkedList* list) {
     }
 }
 
+/*
+	Free all linked list and key / value pairs if user provides specific free function pointers
+*/
 void hmll_free(struct hmll_linkedList* list) {
     struct hmll_keyNode* tempKeyNode;
     while (list->head) {

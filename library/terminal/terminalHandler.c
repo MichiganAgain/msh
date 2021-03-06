@@ -6,16 +6,26 @@
 #include "terminalHandler.h"
 
 
+inline void term_cursor_left(int x) { printf("\x1b[%dD", x); }
+inline void term_cursor_right(int x) { printf("\x1b[%dC", x); }
+inline void term_erase_line() { printf("\x1b[K"); }
+
 void term_error(char* errmsg) {
 	printf("%s\n", errmsg);
 	exit(EXIT_FAILURE);
 }
 
+/*
+	Ensure stdin is connected to a terminal device (tty)
+*/
 void term_ensureTerminalDevice() {
 	if (!isatty(STDIN_FILENO))
 		term_error("Standard input is not connected to a terminal device file");
 }
 
+/*
+	Enable flags on local member of termios structure
+*/
 void term_enableLocalFlag(tcflag_t flags) {
 	struct termios termSettings;
 	int result;
@@ -29,6 +39,9 @@ void term_enableLocalFlag(tcflag_t flags) {
 		term_error("Failed to set terminal attributes");
 }
 
+/*
+	Disable flags on local member of termios structure
+*/
 void term_disableLocalFlag(tcflag_t flags) {
 	struct termios termSettings;
 	int result;
@@ -42,6 +55,9 @@ void term_disableLocalFlag(tcflag_t flags) {
 		term_error("Failed to set terminal attributes");
 }
 
+/*
+	Get current terminal settings and put them in struct provided
+*/
 void term_getCurrentTerm(struct termios* term) {
 	int result;
 
@@ -50,6 +66,9 @@ void term_getCurrentTerm(struct termios* term) {
 		term_error("Failed to get terminal attributes");
 }
 
+/*
+	Set current terminal settings and put them in struct provided
+*/
 void term_setCurrentTerm(struct termios* term) {
 	int result;
 	
@@ -58,6 +77,9 @@ void term_setCurrentTerm(struct termios* term) {
 		term_error("Failed to set terminal attributes");
 }
 
+/*
+	Save current terminal settings that can be restored with the restore function
+*/
 void term_saveOriginalTerm() {
 	int result;
 	term_ensureTerminalDevice();
@@ -65,6 +87,9 @@ void term_saveOriginalTerm() {
 		term_error("Failed to save terminal attributes");
 }
 
+/*
+	Restore terminal settings that have previously been saved with the save function
+*/
 void term_restoreOriginalTerm() {
 	int result;
 	term_ensureTerminalDevice();
@@ -72,7 +97,11 @@ void term_restoreOriginalTerm() {
 		term_error("Failed to restore terminal attributes");
 }
 
-
+/*
+	Read from terminal device any escape sequence and return a constant depending on its value.
+	As escape sequences can be sent to stdin as multiple character, use the read syscall to determine
+	the escape sequence size and value
+*/
 int term_handleEscapeSequence(int c) {
 	char seq[3];
 

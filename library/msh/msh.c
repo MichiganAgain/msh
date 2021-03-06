@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/types.h>
 #include <ctype.h>
 #include <termios.h>
 
@@ -21,6 +22,10 @@ static struct hm_hashMap* aliasMap;
 static struct hm_hashMap* builtinMap;
 
 
+/*
+	Specify stdin / stdout to be unbuffered and set the terminal mode to raw
+	Initialise hash maps with functions for various types and call functions to add values to them
+*/
 void msh_init() {
 	setvbuf(stdin, NULL, _IONBF, 0);	// disable input buffering
 	setvbuf(stdout, NULL, _IONBF, 0);	// disable output buffering
@@ -35,22 +40,32 @@ void msh_init() {
 	msh_init_aliases();
 }
 
+
+/*
+	Add builtin values to builtin hash map
+*/
 static void msh_init_builtins() {
     hm_insert(builtinMap, "cd", builtin_cd);
     hm_insert(builtinMap, "alias", builtin_alias);
 }
 
+/*
+	Add alias values to alias hash map
+*/
 static void msh_init_aliases() {
 	hm_insert(aliasMap, "export", "export me out of debt");
 }
 
+/*
+	Loop through, getting lines from user and executing them until the
+	readline function return NULL.  In which case and EOF was encountered
+*/
 void msh_loop() {
     bool loop = true;
     while (loop) {
         msh_printPrompt();
 
         char* line = msh_readline(stdin);
-
 		if (line) {
 			char** tokens = msh_parse(line);
 			//for (int i = 0; tokens[i] != NULL; i++) printf("Token [%d] = %s\n", i, tokens[i]);
@@ -63,10 +78,14 @@ void msh_loop() {
     }
 }
 
+/*
+	Redraw (currently) everything from the cursor onwards to correctly display internal
+	input buffer on the terminal
+*/
 static void msh_redraw(char* line) {
 	term_erase_line();
 	int cursorShifts = 0;
-	while (*line != '\0') {	
+	while (*line != '\0') {
 		if (!iscntrl(*line)) {
 			putchar(*line);
 			cursorShifts++;
@@ -76,6 +95,10 @@ static void msh_redraw(char* line) {
 	if (cursorShifts > 0) term_cursor_left(cursorShifts);
 }
 
+/*
+	Read from file descriptor until a newline is encountered, in which case return.
+	If user enters control character, then handle it.
+*/
 char* msh_readline(FILE* filedes) {
 	int cursorIndex = 0;
     unsigned int currentBufferSize = BUFFER_SIZE;
@@ -99,7 +122,7 @@ char* msh_readline(FILE* filedes) {
 			cursorIndex++;
 			term_cursor_right(1);
 		}
-		else {
+		else {	// then it is a control character
 			if (c == TERM_EOF && strlen(line) == 0) {
 				free(line);
 				return NULL;
@@ -114,7 +137,6 @@ char* msh_readline(FILE* filedes) {
 			}
 			else {
 				int key = term_handleEscapeSequence(c);
-				// printf("key: %d\n", key);
 
 				switch (key) {
 					case TERM_ARROW_UP:
@@ -145,10 +167,49 @@ char* msh_readline(FILE* filedes) {
     return line;
 }
 
+/*
+	Print prompt before accepting user internet
+*/
 static void msh_printPrompt() {
     printf("msh 0.0 # ");
 }
 
+/*
+	Used to shift a portion of a string to another point in that string.
+	Useful for when a character in the internal buffer is erased or added
+	and the buffer at that / to the right of that character needs to be shifted
+	to the left or the right.
+*/
+static void msh_shiftString(char* stringToShift, char* shiftPoint) {
+	int pointerDifference = shiftPoint - stringToShift;
+	char c;
+
+	if (pointerDifference == 0) return;
+	if (pointerDifference < 0) {	// shifting to the left (string to shift is to the right of the shift point)
+		while ((c = *(stringToShift)) != '\0') { // ++string so can -- at end to set another null char
+			*(stringToShift + pointerDifference) = c;
+			stringToShift++;
+		}
+		*(stringToShift + pointerDifference) = '\0';
+	}
+	else { // shifting to the right (string to shift is to the left of the shift point)
+		char* endOfStringIndex = stringToShift;
+		while (*endOfStringIndex != '\0') endOfStringIndex++;
+
+		while (endOfStringIndex >= stringToShift) {
+			c = *endOfStringIndex;
+			*(endOfStringIndex + pointerDifference) = c;
+			endOfStringIndex--;
+		}
+	}
+}
+
+/*
+	This function will always return the *value* of the string pointer that was passed to it.
+	However, the actual pointer variable will be shifted until the delimiter is found, where
+	the character at that location will be turned into a null char ('\0') and then the variable
+	will further be incremented so it points the the next string, before retuturning from the function.
+*/
 static char* msh_extractToken(char** line) {
     char* originalLine = *line;
     char* firstQuotationAppearance;
@@ -184,30 +245,10 @@ static char* msh_extractToken(char** line) {
     return originalLine;
 }
 
-static void msh_shiftString(char* stringToShift, char* shiftPoint) {
-	int pointerDifference = shiftPoint - stringToShift;
-	char c;
-
-	if (pointerDifference == 0) return;
-	if (pointerDifference < 0) {	// shifting to the left (string to shift is to the right of the shift point)
-		while ((c = *(stringToShift)) != '\0') { // ++string so can -- at end to set another null char
-			*(stringToShift + pointerDifference) = c;
-			stringToShift++;
-		}
-		*(stringToShift + pointerDifference) = '\0';
-	}
-	else { // shifting to the right (string to shift is to the left of the shift point)
-		char* endOfStringIndex = stringToShift;
-		while (*endOfStringIndex != '\0') endOfStringIndex++;
-
-		while (endOfStringIndex >= stringToShift) {
-			c = *endOfStringIndex;
-			*(endOfStringIndex + pointerDifference) = c;
-			endOfStringIndex--;
-		}
-	}
-}
-
+/*
+	This function will generate an array of char* tokens, where each token will point to a string
+	containing either the command or the command arguments.
+*/
 static char** msh_parse(char* line) {
     unsigned int currentBufferSize = TOKEN_BUFFER_SIZE;
     char** tokens = (char**) malloc(sizeof(char*) * currentBufferSize);
@@ -229,6 +270,15 @@ static char** msh_parse(char* line) {
     return tokens;
 }
 
+/*
+	The tokens generated from parsing the input line will be sent to this function to be executed.
+	The first token in the array will be the command, and the rest (if any) will act as its arguments.
+	The original terminal will be restored as most applications launched, if they are expecting
+	input, will be line buffered (canonical) but the terminal will be reverted back to its modified
+	state before the function returns.
+
+	The parent will fork itself and wait for the child to terminate before proceeding,
+*/
 static void msh_execute(char** tokens) {
 	struct termios modifiedTerm;
 	term_getCurrentTerm(&modifiedTerm);
@@ -256,6 +306,9 @@ static void msh_execute(char** tokens) {
 	term_setCurrentTerm(&modifiedTerm);
 }
 
+/*
+	Free data structures and restore terminal to its original state.
+*/
 void msh_clean() {
     hm_free(environmentVariableMap);
     hm_free(aliasMap);
