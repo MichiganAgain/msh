@@ -6,10 +6,6 @@
 #include "terminalHandler.h"
 
 
-inline void term_cursor_left(int x) { printf("\x1b[%dD", x); }
-inline void term_cursor_right(int x) { printf("\x1b[%dC", x); }
-inline void term_erase_line() { printf("\x1b[K"); }
-
 void term_error(char* errmsg) {
 	printf("%s\n", errmsg);
 	exit(EXIT_FAILURE);
@@ -102,7 +98,7 @@ void term_restoreOriginalTerm() {
 	As escape sequences can be sent to stdin as multiple character, use the read syscall to determine
 	the escape sequence size and value
 */
-int term_handleEscapeSequence(int c) {
+int term_getKey(int c) {
 	char seq[3];
 
 	if (read(STDIN_FILENO, &seq[0], 1) != 1) return TERM_ESCAPE_CHAR;

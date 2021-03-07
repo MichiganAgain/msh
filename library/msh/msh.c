@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <ctype.h>
 #include <termios.h>
 
@@ -83,7 +84,6 @@ void msh_loop() {
 	input buffer on the terminal
 */
 static void msh_redraw(char* line) {
-	term_erase_line();
 	int cursorShifts = 0;
 	while (*line != '\0') {
 		if (!iscntrl(*line)) {
@@ -92,6 +92,7 @@ static void msh_redraw(char* line) {
 		}
 		line++;
 	}
+	term_erase_line(); // redundant when adding a character, necessary when erasing
 	if (cursorShifts > 0) term_cursor_left(cursorShifts);
 }
 
@@ -136,7 +137,7 @@ char* msh_readline(FILE* filedes) {
 				}
 			}
 			else {
-				int key = term_handleEscapeSequence(c);
+				int key = term_getKey(c);
 
 				switch (key) {
 					case TERM_ARROW_UP:
@@ -209,34 +210,37 @@ static void msh_shiftString(char* stringToShift, char* shiftPoint) {
 	However, the actual pointer variable will be shifted until the delimiter is found, where
 	the character at that location will be turned into a null char ('\0') and then the variable
 	will further be incremented so it points the the next string, before retuturning from the function.
+
+	This function acts in a very similar way to the C stdlib strsep function, but there is more
+	control with this function.
 */
 static char* msh_extractToken(char** line) {
     char* originalLine = *line;
-    char* firstQuotationAppearance;
     bool inApostraphe = false;
     bool inSpeech = false;
 
     char c;
     if (**line == '\0') return NULL;
-    while ((c = **line) != '\0' && c != '\n') {
-        if (c == ' ' && !inApostraphe && !inSpeech) {
+    while ((c = **line) != '\0') {
+		if ((c == ' ' && !inApostraphe && !inSpeech) || c == '\n') {
             **line = '\0';
             (*line)++;
             return originalLine;
         }
-        else if ((c == '"' && inSpeech) || (c == '\'' && inApostraphe)) { // when found terminating char
-            *firstQuotationAppearance = '\e';
-            **line = '\e';
-            inApostraphe = inSpeech = false;
-        }
 
-        if (c == '"' && !inSpeech && !inApostraphe) {
+		if (c == '"' && !inSpeech && !inApostraphe) {
             inSpeech = true;
-            firstQuotationAppearance = *line;
+			msh_shiftString((*line) + 1, *line);
+			(*line)--; // mitigate the increment at end of loop
         }
         else if (c == '\'' && !inSpeech && !inApostraphe) {
             inApostraphe = true;
-            firstQuotationAppearance = *line;
+			msh_shiftString((*line) + 1, *line);
+			(*line)--; // mitigate the increment at end of loop
+        }
+        else if ((c == '"' && inSpeech) || (c == '\'' && inApostraphe)) { // when found terminating char
+            inApostraphe = inSpeech = false;
+			msh_shiftString((*line) + 1, *line);
         }
 
         (*line)++;
@@ -247,7 +251,7 @@ static char* msh_extractToken(char** line) {
 
 /*
 	This function will generate an array of char* tokens, where each token will point to a string
-	containing either the command or the command arguments.
+	containing either the command or the command arguments.  It uses the extractToken function to acheive this.
 */
 static char** msh_parse(char* line) {
     unsigned int currentBufferSize = TOKEN_BUFFER_SIZE;

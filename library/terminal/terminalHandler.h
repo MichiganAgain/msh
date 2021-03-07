@@ -14,9 +14,11 @@ enum keys {TERM_ARROW_UP, TERM_ARROW_RIGHT, TERM_ARROW_DOWN, TERM_ARROW_LEFT, TE
 
 static struct termios originalTerm;
 
-void term_cursor_left(int x);
-void term_cursor_right(int x);
-void term_erase_line();
+#define term_cursor_left(x) printf("\x1b[%dD", x)
+#define term_cursor_right(x) printf("\x1b[%dC", x)
+#define term_erase_line() printf("\x1b[K")
+#define term_get_cursor_pos() printf("\x1b[6n")
+
 
 // Used to exit program if error occurs in any terminal functions
 void term_error(char* errmsg);
@@ -36,6 +38,6 @@ void term_saveOriginalTerm();
 void term_restoreOriginalTerm();
 
 // Returns an enum int value depending on key pressed or ANSI ASCII escape sequence entered
-int term_handleEscapeSequence(int c);
+int term_getKey(int c);
 
 #endif
