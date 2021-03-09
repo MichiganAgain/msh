@@ -27,7 +27,7 @@ static struct hm_hashMap* builtinMap;
 	Specify stdin / stdout to be unbuffered and set the terminal mode to raw
 	Initialise hash maps with functions for various types and call functions to add values to them
 */
-void msh_init() {
+void msh_init(char* envp[]) {
 	setvbuf(stdin, NULL, _IONBF, 0);	// disable input buffering
 	setvbuf(stdout, NULL, _IONBF, 0);	// disable output buffering
 	term_saveOriginalTerm();
@@ -38,6 +38,7 @@ void msh_init() {
     builtinMap = hm_initialise(index_builtin, compare_builtin, NULL, NULL, output_builtin);
 
     msh_init_builtins();
+	msh_init_environments(envp);
 	msh_init_aliases();
 }
 
@@ -55,6 +56,17 @@ static void msh_init_builtins() {
 */
 static void msh_init_aliases() {
 	hm_insert(aliasMap, "export", "export me out of debt");
+}
+
+static void msh_init_environments(char* envp[]) {
+	char* key, *value;
+	for (int i = 0; envp[i] != NULL; i++) {
+		key = strsep(&envp[i], "=");
+		value = envp[i];
+		envp[i] = key;
+		hm_insert(environmentVariableMap, key, value);
+	}
+	hm_insert(environmentVariableMap, "SHELL", "msh");
 }
 
 /*
@@ -80,18 +92,18 @@ void msh_loop() {
 }
 
 /*
-	Redraw (currently) everything from the cursor onwards to correctly display internal
+	Redraw everything from the cursor onwards to correctly display internal
 	input buffer on the terminal
 */
 static void msh_redraw(char* line) {
 	int cursorShifts = 0;
+	char* originalLine = line;
 	while (*line != '\0') {
-		if (!iscntrl(*line)) {
-			putchar(*line);
-			cursorShifts++;
-		}
+		if (!iscntrl(*line)) cursorShifts++;
 		line++;
 	}
+
+	printf("%s", originalLine);
 	term_erase_line(); // redundant when adding a character, necessary when erasing
 	if (cursorShifts > 0) term_cursor_left(cursorShifts);
 }
@@ -160,7 +172,7 @@ char* msh_readline(FILE* filedes) {
 						break;
 				}
 			}
-			fflush(stdin);	// else flush stdin to get rid of any additional characters like ^[D
+			fflush(stdin);	// flush stdin to get rid of any redundant characters
 		}
     }
 
@@ -176,7 +188,7 @@ static void msh_printPrompt() {
 }
 
 /*
-	Used to shift a portion of a string to another point in that string.
+	Used to shift a substring of a string to another point in that string.
 	Useful for when a character in the internal buffer is erased or added
 	and the buffer at that / to the right of that character needs to be shifted
 	to the left or the right.
@@ -187,7 +199,7 @@ static void msh_shiftString(char* stringToShift, char* shiftPoint) {
 
 	if (pointerDifference == 0) return;
 	if (pointerDifference < 0) {	// shifting to the left (string to shift is to the right of the shift point)
-		while ((c = *(stringToShift)) != '\0') { // ++string so can -- at end to set another null char
+		while ((c = *(stringToShift)) != '\0') {
 			*(stringToShift + pointerDifference) = c;
 			stringToShift++;
 		}
@@ -211,7 +223,7 @@ static void msh_shiftString(char* stringToShift, char* shiftPoint) {
 	the character at that location will be turned into a null char ('\0') and then the variable
 	will further be incremented so it points the the next string, before retuturning from the function.
 
-	This function acts in a very similar way to the C stdlib strsep function, but there is more
+	This function acts in a similar way to the C stdlib strsep function, but there is more
 	control with this function.
 */
 static char* msh_extractToken(char** line) {
@@ -241,11 +253,12 @@ static char* msh_extractToken(char** line) {
         else if ((c == '"' && inSpeech) || (c == '\'' && inApostraphe)) { // when found terminating char
             inApostraphe = inSpeech = false;
 			msh_shiftString((*line) + 1, *line);
+			(*line)--; // mitigate the increment at end of loop
         }
 
         (*line)++;
     }
-
+	
     return originalLine;
 }
 
@@ -264,7 +277,7 @@ static char** msh_parse(char* line) {
             currentBufferSize *= 2;
             char** temp = (char**) malloc(sizeof(char*) * currentBufferSize);
             memcpy(temp, tokens, sizeof(char*) * tokensRead); // copy pointers to strings
-            free(tokens); // free pointers to strings, not actual strings
+            free(tokens); // free old pointers to strings, not actual strings
             tokens = temp;
         }
         tokens[tokensRead++] = token;
@@ -292,6 +305,9 @@ static void msh_execute(char** tokens) {
 	if ((aliasValue = hm_find(aliasMap, tokens[0])) != NULL) {
 		printf("You entered an alias: %s\tvalue: %s\n", tokens[0], aliasValue);
 	}
+
+	void (*builtInValue)() = NULL;
+	if ((builtInValue = hm_find(builtinMap, tokens[0])) != NULL) builtInValue(tokens);
 
     pid_t pid = fork();
     if (pid == -1) {

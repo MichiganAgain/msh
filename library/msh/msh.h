@@ -8,11 +8,13 @@
 
 
 // initialise data structures, set non canonical buffering for terminal and program
-void msh_init();
+void msh_init(char* envp[]);
 // initialise builtin hashmap
 static void msh_init_builtins();
 // initialise aliases hashmap
 static void msh_init_aliases();
+// initialise environments hashmap
+static void msh_init_environments(char* envp[]);
 // gets user input and executes until user exits
 void msh_loop();
 // redraw terminal line if user adds or erases character from input buffer

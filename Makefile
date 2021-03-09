@@ -1,4 +1,4 @@
-objects = main.o msh.o terminalHandler.o hashMap_linkedList.o hashMap.o environmentVariables.o aliases.o builtins.o
+objects = main.o msh.o terminalHandler.o hashMap_linkedList.o hashMap.o list.o environmentVariables.o aliases.o builtins.o
 objectCompilerFlags = -g -c -o
 libdir = library
 
@@ -19,6 +19,9 @@ hashMap_linkedList.o: $(libdir)/datastructures/HashMap/linkedList.c
 
 hashMap.o: $(libdir)/datastructures/HashMap/hashMap.c
 	gcc --std=c18 $(objectCompilerFlags) hashMap.o $(libdir)/datastructures/HashMap/hashMap.c
+
+list.o: $(libdir)/datastructures/List/list.c
+	gcc --std=c18 $(objectCompilerFlags) list.o $(libdir)/datastructures/List/list.c
 
 environmentVariables.o: $(libdir)/msh/environmentVariables.c
 	gcc --std=c18 $(objectCompilerFlags) environmentVariables.o $(libdir)/msh/environmentVariables.c

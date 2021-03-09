@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "builtins.h"
 
@@ -29,10 +30,14 @@ void output_builtin(void* key, void* value) {
 
 // built in functions
 
-void builtin_cd() {
-    
+int builtin_cd(char** tokens) {
+	
+	chdir(tokens[1]);
+	return 0;
 }
 
-void builtin_alias() {
-    
+int builtin_alias(char** tokens) {
+
+
+    return 0;
 }
