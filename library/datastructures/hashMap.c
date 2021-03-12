@@ -2,7 +2,6 @@
 #include <stdlib.h>
 
 #include "hashMap.h"
-#include "list.h"
 
 /*
 	Create and initialise the hashmap data structure with function pointers for
@@ -70,15 +69,12 @@ void hm_free(struct hm_hashMap* hashMap) {
 }
 
 struct list_list* hm_list(struct hm_hashMap* hashMap) {
-	struct list_list* list = list_initialise(hmll_freePair);
+	struct list_list* list = list_init(hmll_pairFree);
+
 	for (int i = 0; i < hashMap->bucketNum; i++) {
-		printf("1) in hm_list\n");
 		struct list_list* bucketList = hmll_list(hashMap->buckets[i]);
-		printf("2) in hm_list\n");
 		list_appendList(list, bucketList);
-		printf("3) in hm_list\n");
 		list_free(bucketList);
-		printf("4) in hm_list\n");
 	}
 
 	return list;

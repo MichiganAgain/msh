@@ -70,10 +70,6 @@ static void msh_init_environments(char* envp[]) {
 			hm_insert(environmentVariableMap, key, value);
 		}
 	}
-	hm_insert(environmentVariableMap, "A KEY", "A VALUE");
-	printf("HASH MAP DEBUG--------------------------------------------------------------------------------------------------\n");
-	hm_output(environmentVariableMap);
-	printf("HASH MAP DEBUG--------------------------------------------------------------------------------------------------\n");
 }
 
 /*
@@ -85,8 +81,7 @@ void msh_loop() {
     while (loop) {
         msh_printPrompt();
 
-        // char* line = msh_readline(stdin);
-		char* line = strdup("l");
+        char* line = msh_readline(stdin);
 		if (line) {
 			char** tokens = msh_parse(line);
 
@@ -267,31 +262,25 @@ static char** msh_parse(char* line) {
     return tokens;
 }
 
-struct list_list* msh_generateEnvironmentList() {
-	printf("ENTERING HM_LIST\n");
+struct list_list* msh_generateEnvironmentTokens() {
 	struct list_list* pairList = hm_list(environmentVariableMap);
-	printf("EXITING HM_LIST\n");
-	struct list_list* keyValueList = list_initialise(string_free);
-
-	struct hmll_pair* debugNode = pairList->list[0];
-	char* debugKey = debugNode->key;
-	char* debugValue = debugNode->value;
+	struct list_list* keyValueList = list_init(env_listFree);
 
 	for (int i = 0; i < pairList->currentFreeIndex; i++) {
-		struct hmll_pair* pairNode = pairList->list[i];
-		char* key = pairNode->key;
-		char* value = pairNode->value;
+		struct hmll_pair* pair = pairList->data[i];
+		char* key = pair->key;
+		char* value = pair->value;
 
-		printf("Key: %s\tValue: %s\n", key, value);
-		int size = sizeof(char) * (strlen(key) + strlen("=") + strlen(value) + 1);
-		char* environmentToken = (char*) malloc(size);
-		strcat(environmentToken, key);
-		strcat(environmentToken, "=");
-		strcat(environmentToken, value);
-		list_append(keyValueList, environmentToken);
+		char* environmentVariableToken = (char*) malloc(sizeof(char) * (strlen(key) + strlen("=") + strlen(value) + 1)); // + 1 for null char
+		strcpy(environmentVariableToken, key);
+		strcat(environmentVariableToken, "=");
+		strcat(environmentVariableToken, value);
+
+		list_append(keyValueList, environmentVariableToken);
 	}
 
 	list_free(pairList);
+	list_append(keyValueList, NULL);
 	return keyValueList;
 }
 
@@ -309,7 +298,7 @@ static void msh_execute(char** tokens) {
 	term_getCurrentTerm(&modifiedTerm);
 	term_restoreOriginalTerm();
 
-	struct list_list* keyValueList = msh_generateEnvironmentList();
+	struct list_list* environmentVariableList = msh_generateEnvironmentTokens();
 
 	char* aliasValue = NULL;
 	if ((aliasValue = hm_find(aliasMap, tokens[0])) != NULL) {

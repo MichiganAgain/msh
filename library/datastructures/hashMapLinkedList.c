@@ -106,12 +106,11 @@ void hmll_free(struct hmll_linkedList* list) {
     free(list);
 }
 
-
 struct list_list* hmll_list(struct hmll_linkedList* linkedList) {
-	struct list_list* list = list_initialise(NULL);
+	struct list_list* list = list_init(NULL);
 	struct hmll_node* temp = linkedList->head;
 	while (temp) {
-		struct hmll_pair* pair = (struct hmll_pair*) malloc(sizeof(hmll_pair));
+		struct hmll_pair* pair = (struct hmll_pair*) malloc(sizeof(struct hmll_pair));
 		pair->key = temp->key;
 		pair->value = temp->value;
 		list_append(list, pair);
@@ -122,6 +121,6 @@ struct list_list* hmll_list(struct hmll_linkedList* linkedList) {
 	return list;
 }
 
-void hmll_freePair(void* data) {
+void hmll_pairFree(void* data) {
 	free(data);
 }

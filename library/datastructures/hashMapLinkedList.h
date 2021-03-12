@@ -10,14 +10,15 @@
 
 #include "list.h"
 
+
 typedef bool (*compareKeysFunction)(void* k1, void* k2);
 typedef void (*freeKeyFunction)(void* key);     // Gives opportunity to free key if it was allocated on heap
 typedef void (*freeValueFunction)(void* value); // Gives opportunity to free value if it was allocated on heap
 typedef void (*outputFunction)(void* key, void* value);
 
-// This struct is used when retrieving values into list, as well as for freeing values from list
 typedef struct hmll_pair {
-	void* key, *value;
+	void* key;
+	void* value;
 } hmll_pair;
 
 struct hmll_node {
@@ -48,6 +49,6 @@ void hmll_output(struct hmll_linkedList* list);
 void hmll_free(struct hmll_linkedList* list);
 
 struct list_list* hmll_list(struct hmll_linkedList* list);
-void hmll_freePair(void* data);
+void hmll_pairFree(void* data);
 
 #endif

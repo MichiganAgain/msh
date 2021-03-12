@@ -27,3 +27,7 @@ void output_environmentVariable(void* key, void* value) {
 
     printf("\tName: %s\tValue: %s\n", keyString, valueString);
 }
+
+void env_listFree(void* data) {
+	free(data);
+}

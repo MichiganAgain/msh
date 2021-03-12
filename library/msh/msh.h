@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include "../datastructures/hashMap.h"
+#include "../datastructures/list.h"
 
 #define TOKEN_BUFFER_SIZE 32
 
@@ -27,9 +28,10 @@ static void msh_printPrompt();
 static char* msh_extractToken(char** line);
 // Create token list from line (uses the extractToken function)
 static char** msh_parse(char* line);
-struct list_list* msh_generateEnvironmentList();
 // executes the command stored in the first token, with the remainders given as arguments
 static void msh_execute(char** tokens);
 void msh_clean();
+
+struct list_list* msh_generateEnvironmentTokens();
 
 #endif

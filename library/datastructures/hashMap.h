@@ -2,7 +2,6 @@
 #define HASHMAP_H
 
 #include "hashMapLinkedList.h"
-#include "list.h"
 
 #define HM_DEFAULT_BUCKETS 4
 
