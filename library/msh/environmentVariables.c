@@ -25,5 +25,5 @@ void output_environmentVariable(void* key, void* value) {
     char* keyString = (char*) key;
     char* valueString = (char*) value;
 
-    printf("Name: %s\tValue: %s\n", keyString, valueString);
+    printf("\tName: %s\tValue: %s\n", keyString, valueString);
 }

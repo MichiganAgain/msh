@@ -1,8 +1,8 @@
 #ifndef BUILTINS_H
 #define BUILTINS_H
 
-#include "../datastructures/HashMap/hashMap.h"
 
+#include <stdbool.h>
 
 // Functions provided for hash map / linked list
 int index_builtin(void* key);

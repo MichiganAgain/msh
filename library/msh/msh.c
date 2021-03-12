@@ -10,7 +10,9 @@
 
 #include "msh.h"
 #include "../terminal/terminalHandler.h"
-#include "../datastructures/HashMap/hashMap.h"
+#include "../datastructures/hashMap.h"
+#include "../datastructures/list.h"
+#include "../string/string.h"
 #include "environmentVariables.h"
 #include "builtins.h"
 #include "aliases.h"
@@ -60,13 +62,18 @@ static void msh_init_aliases() {
 
 static void msh_init_environments(char* envp[]) {
 	char* key, *value;
-	for (int i = 0; envp[i] != NULL; i++) {
-		key = strsep(&envp[i], "=");
-		value = envp[i];
-		envp[i] = key;
-		hm_insert(environmentVariableMap, key, value);
+	if (envp != NULL) {
+		for (int i = 0; envp[i] != NULL; i++) {
+			key = string_strsep(&envp[i], "=");
+			value = envp[i];
+			envp[i] = key;
+			hm_insert(environmentVariableMap, key, value);
+		}
 	}
-	hm_insert(environmentVariableMap, "SHELL", "msh");
+	hm_insert(environmentVariableMap, "A KEY", "A VALUE");
+	printf("HASH MAP DEBUG--------------------------------------------------------------------------------------------------\n");
+	hm_output(environmentVariableMap);
+	printf("HASH MAP DEBUG--------------------------------------------------------------------------------------------------\n");
 }
 
 /*
@@ -78,10 +85,10 @@ void msh_loop() {
     while (loop) {
         msh_printPrompt();
 
-        char* line = msh_readline(stdin);
+        // char* line = msh_readline(stdin);
+		char* line = strdup("l");
 		if (line) {
 			char** tokens = msh_parse(line);
-			//for (int i = 0; tokens[i] != NULL; i++) printf("Token [%d] = %s\n", i, tokens[i]);
 
 			if (strlen(line) > 0) msh_execute(tokens);
 			free(tokens);
@@ -129,7 +136,7 @@ char* msh_readline(FILE* filedes) {
 				line = temp;
 			}
 
-			msh_shiftString(&line[cursorIndex], &line[cursorIndex + 1]);
+			string_shiftString(&line[cursorIndex], &line[cursorIndex + 1]);
 			line[cursorIndex] = (char)c;
 			msh_redraw(&line[cursorIndex]);
 			cursorIndex++;
@@ -142,11 +149,14 @@ char* msh_readline(FILE* filedes) {
 			}
 			else if (c == TERM_KEY_DELETE) {
 				if (cursorIndex > 0) {
-					msh_shiftString(&line[cursorIndex], &line[cursorIndex - 1]);
+					string_shiftString(&line[cursorIndex], &line[cursorIndex - 1]);
 					term_cursor_left(1);
 					cursorIndex--;
 					msh_redraw(&line[cursorIndex]);
 				}
+			}
+			else if (c == TERM_KEY_ENTER) {
+				printf("Enter pressed\n");
 			}
 			else {
 				int key = term_getKey(c);
@@ -188,36 +198,6 @@ static void msh_printPrompt() {
 }
 
 /*
-	Used to shift a substring of a string to another point in that string.
-	Useful for when a character in the internal buffer is erased or added
-	and the buffer at that / to the right of that character needs to be shifted
-	to the left or the right.
-*/
-static void msh_shiftString(char* stringToShift, char* shiftPoint) {
-	int pointerDifference = shiftPoint - stringToShift;
-	char c;
-
-	if (pointerDifference == 0) return;
-	if (pointerDifference < 0) {	// shifting to the left (string to shift is to the right of the shift point)
-		while ((c = *(stringToShift)) != '\0') {
-			*(stringToShift + pointerDifference) = c;
-			stringToShift++;
-		}
-		*(stringToShift + pointerDifference) = '\0';
-	}
-	else { // shifting to the right (string to shift is to the left of the shift point)
-		char* endOfStringIndex = stringToShift;
-		while (*endOfStringIndex != '\0') endOfStringIndex++;
-
-		while (endOfStringIndex >= stringToShift) {
-			c = *endOfStringIndex;
-			*(endOfStringIndex + pointerDifference) = c;
-			endOfStringIndex--;
-		}
-	}
-}
-
-/*
 	This function will always return the *value* of the string pointer that was passed to it.
 	However, the actual pointer variable will be shifted until the delimiter is found, where
 	the character at that location will be turned into a null char ('\0') and then the variable
@@ -242,17 +222,17 @@ static char* msh_extractToken(char** line) {
 
 		if (c == '"' && !inSpeech && !inApostraphe) {
             inSpeech = true;
-			msh_shiftString((*line) + 1, *line);
+			string_shiftString((*line) + 1, *line);
 			(*line)--; // mitigate the increment at end of loop
         }
         else if (c == '\'' && !inSpeech && !inApostraphe) {
             inApostraphe = true;
-			msh_shiftString((*line) + 1, *line);
+			string_shiftString((*line) + 1, *line);
 			(*line)--; // mitigate the increment at end of loop
         }
         else if ((c == '"' && inSpeech) || (c == '\'' && inApostraphe)) { // when found terminating char
             inApostraphe = inSpeech = false;
-			msh_shiftString((*line) + 1, *line);
+			string_shiftString((*line) + 1, *line);
 			(*line)--; // mitigate the increment at end of loop
         }
 
@@ -287,6 +267,34 @@ static char** msh_parse(char* line) {
     return tokens;
 }
 
+struct list_list* msh_generateEnvironmentList() {
+	printf("ENTERING HM_LIST\n");
+	struct list_list* pairList = hm_list(environmentVariableMap);
+	printf("EXITING HM_LIST\n");
+	struct list_list* keyValueList = list_initialise(string_free);
+
+	struct hmll_pair* debugNode = pairList->list[0];
+	char* debugKey = debugNode->key;
+	char* debugValue = debugNode->value;
+
+	for (int i = 0; i < pairList->currentFreeIndex; i++) {
+		struct hmll_pair* pairNode = pairList->list[i];
+		char* key = pairNode->key;
+		char* value = pairNode->value;
+
+		printf("Key: %s\tValue: %s\n", key, value);
+		int size = sizeof(char) * (strlen(key) + strlen("=") + strlen(value) + 1);
+		char* environmentToken = (char*) malloc(size);
+		strcat(environmentToken, key);
+		strcat(environmentToken, "=");
+		strcat(environmentToken, value);
+		list_append(keyValueList, environmentToken);
+	}
+
+	list_free(pairList);
+	return keyValueList;
+}
+
 /*
 	The tokens generated from parsing the input line will be sent to this function to be executed.
 	The first token in the array will be the command, and the rest (if any) will act as its arguments.
@@ -300,6 +308,8 @@ static void msh_execute(char** tokens) {
 	struct termios modifiedTerm;
 	term_getCurrentTerm(&modifiedTerm);
 	term_restoreOriginalTerm();
+
+	struct list_list* keyValueList = msh_generateEnvironmentList();
 
 	char* aliasValue = NULL;
 	if ((aliasValue = hm_find(aliasMap, tokens[0])) != NULL) {

@@ -1,0 +1,18 @@
+#ifndef LIST_H
+#define LIST_H
+
+#define LIST_BUFFER_SIZE 16
+
+typedef struct list_list {
+	int currentBufferSize;
+	int currentFreeIndex;
+	void** list;
+	void (*freeItem)(void*);
+} list_list;
+
+struct list_list* list_initialise(void (*freeItem)(void*));
+void list_append(struct list_list* l1, void* data);
+void list_appendList(struct list_list* l1, struct list_list* l2);
+void list_free(struct list_list* l);
+
+#endif

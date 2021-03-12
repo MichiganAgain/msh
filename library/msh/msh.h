@@ -2,7 +2,7 @@
 #define MSH_H
 
 #include <stdio.h>
-#include "../datastructures/HashMap/hashMap.h"
+#include "../datastructures/hashMap.h"
 
 #define TOKEN_BUFFER_SIZE 32
 
@@ -23,12 +23,11 @@ static void msh_redraw(char* line);
 char* msh_readline(FILE* filedes);
 // prints prompt to tell user to type
 static void msh_printPrompt();
-// Mainly used for when user adds / removes character from middle of input buffer
-static void msh_shiftString(char* stringToShift, char* shiftPoint);
 // Extracts token from delimited line
 static char* msh_extractToken(char** line);
 // Create token list from line (uses the extractToken function)
 static char** msh_parse(char* line);
+struct list_list* msh_generateEnvironmentList();
 // executes the command stored in the first token, with the remainders given as arguments
 static void msh_execute(char** tokens);
 void msh_clean();

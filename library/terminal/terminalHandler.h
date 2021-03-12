@@ -9,15 +9,19 @@
 #define TERM_TAB 9
 #define TERM_ESCAPE_CHAR 0x1b
 #define TERM_KEY_DELETE 127
-
-enum keys {TERM_ARROW_UP, TERM_ARROW_RIGHT, TERM_ARROW_DOWN, TERM_ARROW_LEFT, TERM_UNKNOWN};
-
-static struct termios originalTerm;
+#define TERM_KEY_ENTER 13
 
 #define term_cursor_left(x) printf("\x1b[%dD", x)
 #define term_cursor_right(x) printf("\x1b[%dC", x)
 #define term_erase_line() printf("\x1b[K")
-#define term_get_cursor_pos() printf("\x1b[6n")
+
+
+enum keys {TERM_ARROW_UP, TERM_ARROW_RIGHT, TERM_ARROW_DOWN, TERM_ARROW_LEFT, TERM_UNKNOWN};
+static struct termios originalTerm;
+
+typedef struct term_coord {
+	int x, y;
+} term_coord;
 
 
 // Used to exit program if error occurs in any terminal functions

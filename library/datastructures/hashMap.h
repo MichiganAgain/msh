@@ -1,9 +1,10 @@
 #ifndef HASHMAP_H
 #define HASHMAP_H
 
-#include "linkedList.h"
+#include "hashMapLinkedList.h"
+#include "list.h"
 
-#define HM_DEFAULT_BUCKETS 32
+#define HM_DEFAULT_BUCKETS 4
 
 typedef int (*indexFunction)(void* key);
 
@@ -25,5 +26,7 @@ void hm_remove(struct hm_hashMap* hashMap, void* key);
 void hm_output(struct hm_hashMap* hashMap);
 // Free all data used by hash map
 void hm_free(struct hm_hashMap* hashMap);
+
+struct list_list* hm_list(struct hm_hashMap* hashMap);
 
 #endif
