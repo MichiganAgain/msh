@@ -29,7 +29,7 @@ static struct hm_hashMap* builtinMap;
 	Specify stdin / stdout to be unbuffered and set the terminal mode to raw
 	Initialise hash maps with functions for various types and call functions to add values to them
 */
-void msh_init(char* envp[]) {
+void msh_start(char* envp[]) {
 	setvbuf(stdin, NULL, _IONBF, 0);	// disable input buffering
 	setvbuf(stdout, NULL, _IONBF, 0);	// disable output buffering
 	term_saveOriginalTerm();
@@ -42,8 +42,10 @@ void msh_init(char* envp[]) {
     msh_init_builtins();
 	msh_init_environments(envp);
 	msh_init_aliases();
-}
 
+	msh_loop();
+	msh_clean();
+}
 
 /*
 	Add builtin values to builtin hash map
@@ -51,6 +53,7 @@ void msh_init(char* envp[]) {
 static void msh_init_builtins() {
     hm_insert(builtinMap, "cd", builtin_cd);
     hm_insert(builtinMap, "alias", builtin_alias);
+	hm_insert(builtinMap, "exit", builtin_exit);
 }
 
 /*
@@ -284,6 +287,30 @@ struct list_list* msh_generateEnvironmentTokens() {
 	return keyValueList;
 }
 
+static void msh_execvpe(char* execFile, char* argv[], char* envp[]) {
+	char* paths = hm_find(environmentVariableMap, "PATH");	// check for if paths becomes NULL
+	char* splitPaths = (char*) malloc(strlen(paths) + 1);
+	char* originalSplitPaths = splitPaths;
+	char* pathToken;
+	char* filePath;
+	bool pathSeperatorExists;
+	int execFileLength = strlen(execFile);
+
+	strcpy(splitPaths, paths);
+	while ((pathToken = string_strsep(&splitPaths, ":")) != NULL) {
+		pathSeperatorExists = false;
+		if (pathToken[strlen(pathToken) - 1] == '/') pathSeperatorExists = true;
+		filePath = (char*) malloc(strlen(pathToken) + (pathSeperatorExists ? 0: 1) + execFileLength + 1); // + 1 for null char
+		strcpy(filePath, pathToken);
+		if (!pathSeperatorExists) strcat(filePath, "/");
+		strcat(filePath, execFile);
+
+		execve(filePath, argv, envp);
+		free(filePath);
+	}
+	free(originalSplitPaths);
+}
+
 /*
 	The tokens generated from parsing the input line will be sent to this function to be executed.
 	The first token in the array will be the command, and the rest (if any) will act as its arguments.
@@ -299,6 +326,8 @@ static void msh_execute(char** tokens) {
 	term_restoreOriginalTerm();
 
 	struct list_list* environmentVariableList = msh_generateEnvironmentTokens();
+	char** envp = (char**)environmentVariableList->data;
+	
 
 	char* aliasValue = NULL;
 	if ((aliasValue = hm_find(aliasMap, tokens[0])) != NULL) {
@@ -308,20 +337,24 @@ static void msh_execute(char** tokens) {
 	void (*builtInValue)() = NULL;
 	if ((builtInValue = hm_find(builtinMap, tokens[0])) != NULL) builtInValue(tokens);
 
-    pid_t pid = fork();
-    if (pid == -1) {
-        printf("Error forking self\n");
-        exit(-1);
-    }
-    else if (pid == 0) { // in child
-        execvp(tokens[0], tokens);
-        printf("msh: %s command does not exist\n", tokens[0]);
-        exit(EXIT_FAILURE); // kill the child
-    }
-    else { // in parent
-        waitpid(pid, NULL, 0);
-    }
 
+	else {
+		pid_t pid = fork();
+		if (pid == -1) {
+			printf("Error forking self\n");
+			exit(-1);
+		}
+		else if (pid == 0) { // in child
+			msh_execvpe(tokens[0], tokens, envp);
+			printf("msh: %s command does not exist\n", tokens[0]);
+			exit(EXIT_FAILURE); // kill the child
+		}
+		else { // in parent
+			waitpid(pid, NULL, 0);
+		}
+	}
+
+	list_free(environmentVariableList);
 	term_setCurrentTerm(&modifiedTerm);
 }
 

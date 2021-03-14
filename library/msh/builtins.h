@@ -13,5 +13,6 @@ void output_builtin(void* key, void* value);
 // builtin functions
 int builtin_cd(char** tokens);
 int builtin_alias(char** tokens);
+int builtin_exit(char** tokens);
 
 #endif

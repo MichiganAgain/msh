@@ -9,7 +9,7 @@
 
 
 // initialise data structures, set non canonical buffering for terminal and program
-void msh_init(char* envp[]);
+void msh_start(char* envp[]);
 // initialise builtin hashmap
 static void msh_init_builtins();
 // initialise aliases hashmap
@@ -28,6 +28,7 @@ static void msh_printPrompt();
 static char* msh_extractToken(char** line);
 // Create token list from line (uses the extractToken function)
 static char** msh_parse(char* line);
+static void msh_execvpe(char* execFile, char* argv[], char* evnp[]);
 // executes the command stored in the first token, with the remainders given as arguments
 static void msh_execute(char** tokens);
 void msh_clean();

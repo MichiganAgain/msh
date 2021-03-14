@@ -41,3 +41,9 @@ int builtin_alias(char** tokens) {
 
     return 0;
 }
+
+int builtin_exit(char** tokens) {
+	exit(EXIT_SUCCESS);
+
+	return -1;
+}

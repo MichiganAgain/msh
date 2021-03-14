@@ -1,7 +1,7 @@
 #ifndef LIST_H
 #define LIST_H
 
-#define LIST_BUFFER_SIZE 1
+#define LIST_BUFFER_SIZE 16
 
 typedef struct list_list {
 	int currentBufferSize;
