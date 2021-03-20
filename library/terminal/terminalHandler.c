@@ -31,7 +31,7 @@ void term_enableLocalFlag(tcflag_t flags) {
 		term_error("Failed to get terminal attributes");
 
 	termSettings.c_lflag &= flags;
-	if ((result = tcsetattr(STDIN_FILENO,TCSADRAIN, &termSettings)) != 0)
+	if ((result = tcsetattr(STDIN_FILENO, TCSADRAIN, &termSettings)) != 0)
 		term_error("Failed to set terminal attributes");
 }
 
@@ -47,50 +47,54 @@ void term_disableLocalFlag(tcflag_t flags) {
 		term_error("Failed to get terminal attributes");
 
 	termSettings.c_lflag &= ~flags;
-	if ((result = tcsetattr(STDIN_FILENO,TCSADRAIN, &termSettings)) != 0)
+	if ((result = tcsetattr(STDIN_FILENO, TCSADRAIN, &termSettings)) != 0)
 		term_error("Failed to set terminal attributes");
 }
 
 /*
 	Get current terminal settings and put them in struct provided
 */
-void term_getCurrentTerm(struct termios* term) {
+struct termios term_getTerm() {
 	int result;
+	struct termios term;
 
 	term_ensureTerminalDevice();
-	if ((result = tcgetattr(STDIN_FILENO, term)) != 0)
+	if ((result = tcgetattr(STDIN_FILENO, &term)) != 0)
 		term_error("Failed to get terminal attributes");
+	
+	return term;
 }
 
 /*
 	Set current terminal settings and put them in struct provided
 */
-void term_setCurrentTerm(struct termios* term) {
+void term_setTerm(struct termios term) {
 	int result;
 	
 	term_ensureTerminalDevice();
-	if ((result = tcsetattr(STDIN_FILENO,TCSADRAIN, term)) != 0)
+	if ((result = tcsetattr(STDIN_FILENO,TCSADRAIN, &term)) != 0)
 		term_error("Failed to set terminal attributes");
 }
 
 /*
 	Save current terminal settings that can be restored with the restore function
 */
-void term_saveOriginalTerm() {
-	int result;
-	term_ensureTerminalDevice();
-	if ((result = tcgetattr(STDIN_FILENO, &originalTerm)) != 0)
-		term_error("Failed to save terminal attributes");
+void term_saveTerm(struct termios term) {
+	savedTerminal = term;
 }
 
 /*
 	Restore terminal settings that have previously been saved with the save function
 */
-void term_restoreOriginalTerm() {
+void term_restoreTerm() {
 	int result;
 	term_ensureTerminalDevice();
-	if ((result = tcsetattr(STDIN_FILENO,TCSADRAIN, &originalTerm)) != 0)
+	if ((result = tcsetattr(STDIN_FILENO,TCSADRAIN, &savedTerminal)) != 0)
 		term_error("Failed to restore terminal attributes");
+}
+
+void term_getCursorPosition(struct term_position pos) {
+	
 }
 
 /*
@@ -98,9 +102,8 @@ void term_restoreOriginalTerm() {
 	As escape sequences can be sent to stdin as multiple character, use the read syscall to determine
 	the escape sequence size and value
 */
-int term_getKey(int c) {
+int term_getEscapeKey(int c) {
 	char seq[3];
-
 	if (read(STDIN_FILENO, &seq[0], 1) != 1) return TERM_ESCAPE_CHAR;
 	if (read(STDIN_FILENO, &seq[1], 1) != 1) return TERM_ESCAPE_CHAR;
 
