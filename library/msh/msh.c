@@ -18,20 +18,38 @@
 #include "builtins.h"
 #include "aliases.h"
 
-#define BUFFER_SIZE 128
 
 
 static struct hm_hashMap* environmentVariableMap;
 static struct hm_hashMap* aliasMap;
 static struct hm_hashMap* builtinMap;
-static struct term_position terminalCursor;
+
+static struct term_position globalCursorState;
+static struct term_position terminalWindowSize;
+
+enum inputStatus {ENTER_PRESSED, EOF_PRESSED, UNKNOWN_KEY_PRESSED, NON_CONTROL_PRESSED,
+					CONTROL_PRESSED};
 
 /*
     Specify stdin / stdout to be unbuffered and set the terminal mode to raw
     Initialise hash maps with functions for various types and call functions to add values to them
 */
 void msh_start(char* envp[]) {
-    setvbuf(stdin, NULL, _IONBF, 0);	// disable input buffering
+    msh_initTerminal();
+	
+	term_getWindowSize(&terminalWindowSize);
+	term_getCursorPosition(&globalCursorState);
+
+    msh_init_builtins();
+    msh_init_environments(envp);
+    msh_init_aliases();
+
+    msh_loop();
+    msh_clean();
+}
+
+void msh_initTerminal() {
+	setvbuf(stdin, NULL, _IONBF, 0);	// disable input buffering
     setvbuf(stdout, NULL, _IONBF, 0);	// disable output buffering
 
     struct termios originalTerm = term_getTerm();
@@ -43,24 +61,13 @@ void msh_start(char* envp[]) {
     modifiedTerm.c_cc[VMIN] = 0;                        // Requires no bytes read before returning from a read call
     modifiedTerm.c_cc[VTIME] = 1;                       // Wait for 0.1 seconds of no input before returning from a read call
     term_setTerm(modifiedTerm);
-    
-    environmentVariableMap = hm_initialise(index_environmentVariable, compare_environmentVariable, NULL, NULL, output_environmentVariable);
-    aliasMap = hm_initialise(index_alias, compare_alias, NULL, NULL, output_alias);
-    builtinMap = hm_initialise(index_builtin, compare_builtin, NULL, NULL, output_builtin);
-
-    msh_init_builtins();
-    msh_init_environments(envp);
-    msh_init_aliases();
-
-
-    msh_loop();
-    msh_clean();
 }
 
 /*
     Add builtin values to builtin hash map
 */
 static void msh_init_builtins() {
+	builtinMap = hm_initialise(index_builtin, compare_builtin, NULL, NULL, output_builtin);
     hm_insert(builtinMap, "cd", builtin_cd);
     hm_insert(builtinMap, "alias", builtin_alias);
     hm_insert(builtinMap, "exit", builtin_exit);
@@ -70,10 +77,12 @@ static void msh_init_builtins() {
     Add alias values to alias hash map
 */
 static void msh_init_aliases() {
-    hm_insert(aliasMap, "export", "export me out of debt");
+	aliasMap = hm_initialise(index_alias, compare_alias, NULL, NULL, output_alias);
+    hm_insert(aliasMap, "export", "exporting goods");
 }
 
 static void msh_init_environments(char* envp[]) {
+	environmentVariableMap = hm_initialise(index_environmentVariable, compare_environmentVariable, NULL, NULL, output_environmentVariable);
     char* key, *value;
     if (envp != NULL) {
         for (int i = 0; envp[i] != NULL; i++) {
@@ -92,7 +101,7 @@ static void msh_init_environments(char* envp[]) {
 void msh_loop() {
     bool loop = true;
     while (loop) {
-        char* line = msh_readline(stdin);
+        char* line = msh_readinput(stdin);
         if (line) {
             char** tokens = msh_parse(line);
 
@@ -125,11 +134,10 @@ static void msh_redraw(char* line) {
     Read from file descriptor until a newline is encountered, in which case return.
     If user enters control character, then handle it.
 */
-char* msh_readline(FILE* filedes) {
-    int cursorIndex = 0;
-    unsigned int currentBufferSize = BUFFER_SIZE;
-    char* line = (char*) malloc(sizeof(char) * currentBufferSize);
-    *line = '\0';
+char* msh_readinput() {
+    int cursorIndex = 0, cursorBoundary = 0;
+	string input;
+	string_initialise(&input);
     
     msh_printPrompt();
     bool readLoop = true;
@@ -138,66 +146,81 @@ char* msh_readline(FILE* filedes) {
         size_t numRead = read(STDIN_FILENO, &c, sizeof(c));
 
         if (numRead <= 0) continue;
-
-        if (!iscntrl(c)) {
-            if (strlen(line) + 1 >= currentBufferSize) {	// +1 for '\0'
-                currentBufferSize *= 2;
-                line = realloc(line, currentBufferSize);
-            }
-            string_shiftString(&line[cursorIndex], &line[cursorIndex + 1]);
-            line[cursorIndex] = (char)c;
-            msh_redraw(&line[cursorIndex]);
-            cursorIndex++;
-            term_cursor_right(1);
-        }
-        else {
-            if (c == '\x1b') {  // Handle escape sequence
-                int key = term_getEscapeKey(c);
-                switch (key) {
-                    case TERM_ESCAPE_CHAR:
-                        break;
-                    case TERM_ARROW_UP:
-                        break;
-                    case TERM_ARROW_RIGHT:
-                        if (cursorIndex < strlen(line)) {
-                            term_cursor_right(1);
-                            cursorIndex++;
-                        }
-                        break;
-                    case TERM_ARROW_DOWN:
-                        break;
-                    case TERM_ARROW_LEFT:
-                        if (cursorIndex > 0) {
-                            term_cursor_left(1);
-                            cursorIndex--;
-                        }
-                        break;
-                }
-            }
-            else {
-                switch (c) {
-                    case TERM_KEY_EOF:
-                        free(line);
-                        return NULL;
-                    case TERM_KEY_DELETE:
-                        if (cursorIndex > 0) {
-                            string_shiftString(&line[cursorIndex], &line[cursorIndex - 1]);
-                            term_cursor_left(1);
-                            cursorIndex--;
-                            msh_redraw(&line[cursorIndex]);
-                        }
-                        break;
-                    case TERM_KEY_ENTER:
-                        printf("\r\n");
-                        readLoop = false;
-                }
-            }
-        }
+		int status = msh_handleKey(&input, c, &cursorIndex, &cursorBoundary);
+		switch (status) {
+			case EOF_PRESSED:
+				string_free(&input);
+				return NULL;
+			case ENTER_PRESSED:
+				readLoop = false;
+		}
+		// printf("Character val: %d\r\n", c);
 
         fflush(stdin);	// flush stdin to get rid of any redundant characters
     }
+	char* inputStringBuffer = string_copyToBuffer(&input);
+	string_free(&input);
 
-    return line;
+    return inputStringBuffer;
+}
+
+int msh_handleKey(struct string* input, char c, int* cursorIndex, int* cursorBoundary) {
+	term_getWindowSize(&terminalWindowSize);
+	term_getCursorPosition(&globalCursorState);
+	
+	if (!iscntrl(c)) {
+		string_insertCharAt(input, c, *cursorIndex);
+		msh_redraw(&(input->string[*cursorIndex]));
+		(*cursorIndex)++;
+		term_cursor_right(1);
+		
+		return NON_CONTROL_PRESSED;
+	}
+	else {
+		if (c == '\x1b') {  // Handle escape sequence
+			int key = term_getEscapeKey(c);
+			switch (key) {
+				case TERM_ESCAPE_CHAR:
+					break;
+				case TERM_ARROW_UP:
+					break;
+				case TERM_ARROW_RIGHT:
+					if (*cursorIndex < input->freeIndex) {
+						term_cursor_right(1);
+						(*cursorIndex)++;
+					}
+					break;
+				case TERM_ARROW_DOWN:
+					break;
+				case TERM_ARROW_LEFT:
+					if (*cursorIndex > *cursorBoundary) {
+						term_cursor_left(1);
+						(*cursorIndex)--;
+					}
+					break;
+			}
+		}
+		else {
+			switch (c) {
+				case TERM_KEY_EOF:
+					return EOF_PRESSED;
+				case TERM_KEY_DELETE:
+					if (*cursorIndex > *cursorBoundary) {
+						term_cursor_left(1);
+						(*cursorIndex)--;
+						string_erase(input, *cursorIndex, 1);
+						msh_redraw(&(input->string[*cursorIndex]));
+					}
+					break;
+				case TERM_KEY_ENTER:
+					printf("\r\n");
+					return ENTER_PRESSED;
+				case TERM_KEY_TAB:
+					break;
+			}
+		}
+	}
+	return UNKNOWN_KEY_PRESSED;
 }
 
 /*

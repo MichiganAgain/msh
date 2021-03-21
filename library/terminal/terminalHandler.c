@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <termios.h>
 #include <unistd.h>
+#include <ctype.h>
+#include <sys/ioctl.h>
 
 #include "terminalHandler.h"
 
@@ -93,8 +95,29 @@ void term_restoreTerm() {
 		term_error("Failed to restore terminal attributes");
 }
 
-void term_getCursorPosition(struct term_position pos) {
-	
+void term_getCursorPosition(struct term_position* pos) {
+	const int BUFF_SIZE = 32;
+	char posBuff[BUFF_SIZE];
+	int i = 0;
+
+	term_get_cursor_pos();
+	while (i < BUFF_SIZE - 1) {	// - 1 for null char
+		if (read(STDIN_FILENO, &posBuff[i], 1) != 1) break;
+		if (posBuff[i] == 'R') break;
+		i++;
+	}
+	posBuff[i] = '\0';
+
+	if (posBuff[0] != '\x1b' || posBuff[1] != '[') return;
+	sscanf(&posBuff[2], "%d;%d", &(pos->row), &(pos->column));
+}
+
+void term_getWindowSize(struct term_position* winSize) {
+	struct winsize ws;
+
+	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) return;
+	winSize->column = ws.ws_col;
+	winSize->row = ws.ws_row;
 }
 
 /*

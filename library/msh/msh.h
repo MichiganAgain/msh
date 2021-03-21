@@ -4,12 +4,14 @@
 #include <stdio.h>
 #include "../datastructures/hashMap.h"
 #include "../datastructures/list.h"
+#include "../string/string.h"
 
 #define TOKEN_BUFFER_SIZE 32
 
 
 // initialise data structures, set non canonical buffering for terminal and program
 void msh_start(char* envp[]);
+void msh_initTerminal();
 // initialise builtin hashmap
 static void msh_init_builtins();
 // initialise aliases hashmap
@@ -21,7 +23,8 @@ void msh_loop();
 // redraw terminal line if user adds or erases character from input buffer
 static void msh_redraw(char* line);
 // readline from user input essentially until return key pressed
-char* msh_readline(FILE* filedes);
+char* msh_readinput();
+int msh_handleKey(struct string* input, char c, int* cursorIndex, int* cursorBoundary);
 // prints prompt to tell user to type
 static void msh_printPrompt();
 // Extracts token from delimited line

@@ -16,6 +16,7 @@
 #define term_cursor_left(x) printf("\x1b[%dD", x)
 #define term_cursor_right(x) printf("\x1b[%dC", x)
 #define term_erase_line() printf("\x1b[K")
+#define term_get_cursor_pos() printf("\x1b[6n")
 
 typedef struct term_terminalState {
 	int width, height;
@@ -45,7 +46,8 @@ void term_setTerm(struct termios term);
 void term_saveTerm(struct termios term);
 // Used for when exiting or launching another process
 void term_restoreTerm();
-void term_getCursorPosition(struct term_position pos);
+void term_getCursorPosition(struct term_position* pos);
+void term_getWindowSize(struct term_position* winSize);
 
 
 // Returns an enum int value depending on key pressed or ANSI ASCII escape sequence entered
