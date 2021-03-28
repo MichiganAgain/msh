@@ -9,7 +9,7 @@
 
 
 void term_error(char* errmsg) {
-	printf("%s\n", errmsg);
+	printf("TERMINAL ERROR: %s\n", errmsg);
 	exit(EXIT_FAILURE);
 }
 
@@ -125,7 +125,7 @@ void term_getWindowSize(struct term_position* winSize) {
 	As escape sequences can be sent to stdin as multiple character, use the read syscall to determine
 	the escape sequence size and value
 */
-int term_getEscapeKey(int c) {
+int term_getEscapeKey(char c) {
 	char seq[3];
 	if (read(STDIN_FILENO, &seq[0], 1) != 1) return TERM_ESCAPE_CHAR;
 	if (read(STDIN_FILENO, &seq[1], 1) != 1) return TERM_ESCAPE_CHAR;

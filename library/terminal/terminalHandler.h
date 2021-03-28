@@ -17,6 +17,7 @@
 #define term_cursor_right(x) printf("\x1b[%dC", x)
 #define term_erase_line() printf("\x1b[K")
 #define term_get_cursor_pos() printf("\x1b[6n")
+#define term_set_cursor_pos(row, col) printf("\x1b[%d;%dH", row, col)
 
 typedef struct term_terminalState {
 	int width, height;
@@ -51,6 +52,6 @@ void term_getWindowSize(struct term_position* winSize);
 
 
 // Returns an enum int value depending on key pressed or ANSI ASCII escape sequence entered
-int term_getEscapeKey(int c);
+int term_getEscapeKey(char c);
 
 #endif

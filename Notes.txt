@@ -1,0 +1,7 @@
+For redrawing:
+
+If I want to have a customisable prompt that can update continuously and show something like the current time, I will constantly have to re-adjust the cursor start position for the internal buffer when re-drawing the internal buffer.
+
+I think what I can do is when the shell starts I can save the position of the cursor where the prompt will start at, and call that something like 'cursorPromptStartPosition'.  Every time the user types input and it goes onto the next line, the 'cursorPromptStartPosition' variable will have to be decremented so it is on the above row (as the top of the terminal has a smaller row value than the bottom).  Then when the 'cursorPromptStartPosition' variable goes < 0 (or one, I can't remember whether it is zero indexed), stop updating the prompt.
+
+After I draw the prompt, I may need to use a variable to store the starting cursor position of the internal buffer so that if the user presses C-a, I can go to the beginning of the buffer.  This will get a bit more complicated if the user has typed continuous input and pushed the prompt off the beginning of the screen.  Eek.  Actually that will get really annoying if they resize the terminal.  Wow there is a lot more to this than I thought.

@@ -20,15 +20,6 @@
 
 
 
-static struct hm_hashMap* environmentVariableMap;
-static struct hm_hashMap* aliasMap;
-static struct hm_hashMap* builtinMap;
-
-static struct term_position globalCursorState;
-static struct term_position terminalWindowSize;
-
-enum inputStatus {ENTER_PRESSED, EOF_PRESSED, UNKNOWN_KEY_PRESSED, NON_CONTROL_PRESSED,
-					CONTROL_PRESSED};
 
 /*
     Specify stdin / stdout to be unbuffered and set the terminal mode to raw
@@ -43,6 +34,8 @@ void msh_start(char* envp[]) {
     msh_init_builtins();
     msh_init_environments(envp);
     msh_init_aliases();
+
+	// printf("COMPLETE: %d COMMAND: %d APOSTROPHE: %d QUOTATION: %d\r\n", TOKEN_COMPLETE, TOKEN_MISSING_COMMAND, TOKEN_MISSING_APOSTROPHE, TOKEN_MISSING_QUOTATION);
 
     msh_loop();
     msh_clean();
@@ -59,7 +52,7 @@ void msh_initTerminal() {
     modifiedTerm.c_oflag &= ~OPOST;					    // Disable output data processing (i.e \n being converted to \r\n) (output flags)
     modifiedTerm.c_lflag &= ~(ICANON | ECHO | ISIG);	// Disable canonical input, echo back and whether INTR, QUIT and SUSP characters are recognised
     modifiedTerm.c_cc[VMIN] = 0;                        // Requires no bytes read before returning from a read call
-    modifiedTerm.c_cc[VTIME] = 1;                       // Wait for 0.1 seconds of no input before returning from a read call
+    modifiedTerm.c_cc[VTIME] = 1;                       // Wait for 0.1 seconds of no input before returning from a read call (but if a character is entered, it will return immediately)
     term_setTerm(modifiedTerm);
 }
 
@@ -101,7 +94,7 @@ static void msh_init_environments(char* envp[]) {
 void msh_loop() {
     bool loop = true;
     while (loop) {
-        char* line = msh_readinput(stdin);
+        char* line = msh_readinput(stdin);	// returns a complete token (which can contain subtokens (i.e seperated by &&))
         if (line) {
             char** tokens = msh_parse(line);
 
@@ -118,6 +111,7 @@ void msh_loop() {
     input buffer on the terminal
 */
 static void msh_redraw(char* line) {
+	// term_set_cursor_pos(previousCursorState.row, previousCursorState.column);
     int cursorShifts = 0;
     char* originalLine = line;
     while (*line != '\0') {
@@ -135,23 +129,24 @@ static void msh_redraw(char* line) {
     If user enters control character, then handle it.
 */
 char* msh_readinput() {
-    int cursorIndex = 0, cursorBoundary = 0;
+    int internalCursorIndex = 0, cursorBoundaryIndex = 0;
+	int tokenStatus;
 	string input;
 	string_initialise(&input);
     
-    msh_printPrompt();
+	msh_printPrompt(MSH_PROMPT_DEFAULT);
     bool readLoop = true;
     while (readLoop) {
         char c;
-        size_t numRead = read(STDIN_FILENO, &c, sizeof(c));
+        size_t numRead = read(STDIN_FILENO, &c, 1);
 
         if (numRead <= 0) continue;
-		int status = msh_handleKey(&input, c, &cursorIndex, &cursorBoundary);
+		int status = msh_handleKey(&input, c, &internalCursorIndex, &cursorBoundaryIndex);
 		switch (status) {
 			case EOF_PRESSED:
 				string_free(&input);
 				return NULL;
-			case ENTER_PRESSED:
+			case TOKEN_COMPLETE:
 				readLoop = false;
 		}
 		// printf("Character val: %d\r\n", c);
@@ -159,65 +154,93 @@ char* msh_readinput() {
         fflush(stdin);	// flush stdin to get rid of any redundant characters
     }
 	char* inputStringBuffer = string_copyToBuffer(&input);
+	// printf("Command: %s\r\n", inputStringBuffer);
 	string_free(&input);
 
     return inputStringBuffer;
 }
 
-int msh_handleKey(struct string* input, char c, int* cursorIndex, int* cursorBoundary) {
-	term_getWindowSize(&terminalWindowSize);
-	term_getCursorPosition(&globalCursorState);
-	
+int msh_handleKey(struct string* input, char c, int* internalCursorIndex, int* cursorBoundaryIndex) {
 	if (!iscntrl(c)) {
-		string_insertCharAt(input, c, *cursorIndex);
-		msh_redraw(&(input->string[*cursorIndex]));
-		(*cursorIndex)++;
-		term_cursor_right(1);
+		term_getWindowSize(&terminalWindowSize);
+		term_getCursorPosition(&globalCursorState);
+		string_insertCharAt(input, c, *internalCursorIndex);
+		msh_redraw(&(input->string[*internalCursorIndex]));
+		(*internalCursorIndex)++;
+		if (globalCursorState.column >= terminalWindowSize.column) printf("\r\n");
+		else term_cursor_right(1);
 		
 		return NON_CONTROL_PRESSED;
 	}
-	else {
-		if (c == '\x1b') {  // Handle escape sequence
-			int key = term_getEscapeKey(c);
-			switch (key) {
-				case TERM_ESCAPE_CHAR:
-					break;
-				case TERM_ARROW_UP:
-					break;
-				case TERM_ARROW_RIGHT:
-					if (*cursorIndex < input->freeIndex) {
-						term_cursor_right(1);
-						(*cursorIndex)++;
-					}
-					break;
-				case TERM_ARROW_DOWN:
-					break;
-				case TERM_ARROW_LEFT:
-					if (*cursorIndex > *cursorBoundary) {
-						term_cursor_left(1);
-						(*cursorIndex)--;
-					}
-					break;
-			}
+	else if (c == '\x1b') {  // Handle escape sequence
+		int key = term_getEscapeKey(c);
+		term_getWindowSize(&terminalWindowSize);
+		term_getCursorPosition(&globalCursorState);
+		switch (key) {
+			case TERM_ESCAPE_CHAR:
+				break;
+			case TERM_ARROW_UP:
+				break;
+			case TERM_ARROW_RIGHT:
+				if (*internalCursorIndex < input->freeIndex) {
+					if (globalCursorState.column >= terminalWindowSize.column) printf("\r\n");
+					else term_cursor_right(1);
+					(*internalCursorIndex)++;
+				}
+				break;
+			case TERM_ARROW_DOWN:
+				break;
+			case TERM_ARROW_LEFT:
+				if (*internalCursorIndex > *cursorBoundaryIndex) {
+					term_cursor_left(1);
+					(*internalCursorIndex)--;
+				}
+				break;
 		}
-		else {
-			switch (c) {
-				case TERM_KEY_EOF:
-					return EOF_PRESSED;
-				case TERM_KEY_DELETE:
-					if (*cursorIndex > *cursorBoundary) {
-						term_cursor_left(1);
-						(*cursorIndex)--;
-						string_erase(input, *cursorIndex, 1);
-						msh_redraw(&(input->string[*cursorIndex]));
-					}
-					break;
-				case TERM_KEY_ENTER:
-					printf("\r\n");
-					return ENTER_PRESSED;
-				case TERM_KEY_TAB:
-					break;
-			}
+	}
+	else {
+		term_getWindowSize(&terminalWindowSize);
+		term_getCursorPosition(&globalCursorState);
+		int tokenStatus;
+		switch (c) {
+			case TERM_KEY_EOF:
+				return EOF_PRESSED;
+			case TERM_KEY_DELETE:
+				if (*internalCursorIndex > *cursorBoundaryIndex) {
+					if (globalCursorState.column == 1) term_set_cursor_pos(globalCursorState.row - 1, terminalWindowSize.column);
+					else term_cursor_left(1);
+					(*internalCursorIndex)--;
+					string_erase(input, *internalCursorIndex, 1);
+					msh_redraw(&(input->string[*internalCursorIndex]));
+				}
+				break;
+			case TERM_KEY_ENTER:
+				printf("\r\n");
+				tokenStatus = msh_getTokenStatus(input->string);
+				// printf("Token: %s\r\n", input.string);
+				// printf("Token Status: %d\r\n", tokenStatus);
+				switch (tokenStatus) {
+					case TOKEN_MISSING_APOSTROPHE:
+						msh_printPrompt(MSH_PROMPT_APOSTROPHE);
+						string_appendChar(input, '\n');
+						break;
+					case TOKEN_MISSING_QUOTATION:
+						msh_printPrompt(MSH_PROMPT_QUOTATION);
+						string_appendChar(input, '\n');
+						break;
+					case TOKEN_MISSING_COMMAND:
+						msh_printPrompt(MSH_PROMPT_COMMAND);
+						break;
+					case TOKEN_COMPLETE:
+						return TOKEN_COMPLETE;
+				}
+
+				*internalCursorIndex = *cursorBoundaryIndex = input->freeIndex;
+				return ENTER_PRESSED;
+
+			case TERM_KEY_TAB:
+				
+				break;
 		}
 	}
 	return UNKNOWN_KEY_PRESSED;
@@ -226,8 +249,8 @@ int msh_handleKey(struct string* input, char c, int* cursorIndex, int* cursorBou
 /*
     Print prompt before accepting user internet
 */
-static void msh_printPrompt() {
-    printf("msh 0.0 # ");
+static void msh_printPrompt(char* prompt) {
+    printf("%s", prompt);
 }
 
 /*
@@ -280,7 +303,7 @@ static char* msh_extractToken(char** line) {
     containing either the command or the command arguments.  It uses the extractToken function to acheive this.
 */
 static char** msh_parse(char* line) {
-    unsigned int currentBufferSize = TOKEN_BUFFER_SIZE;
+    unsigned int currentBufferSize = MSH_TOKEN_BUFFER_SIZE;
     char** tokens = (char**) malloc(sizeof(char*) * currentBufferSize);
     char* token;
     int tokensRead = 0;
@@ -320,6 +343,47 @@ struct list_list* msh_generateEnvironmentTokens() {
     list_free(pairList);
     list_append(keyValueList, NULL);
     return keyValueList;
+}
+
+
+/*
+	This function checks if the token or tokens currently entered by the user is complete.
+	Just because this function returns true, does not mean it is valid.  For example,
+	echo "hi" && echo "bye"		is considered a complete token, which when later parsed will consist of two tokens.
+	echo "hi" && %		is also considered a complete token, even though when parsed, the last token will be considered incorrect.
+	echo "hi &&		is not considered a complete token as the user still needs to enter the closing quotation.
+*/
+static int msh_getTokenStatus(char* line) {
+	size_t lineLength = strlen(line);
+	bool inApostrophe, inQuotation, expectingCommand;
+	inApostrophe = inQuotation = expectingCommand = false;
+
+	for (int i = 0; i < lineLength; i++) {
+		char c = line[i];
+		if (c == '\'') {
+			if (inApostrophe) inApostrophe = false;
+			else if (!inApostrophe && !inQuotation) inApostrophe = true;
+		}
+		else if (c == '"') {
+			if (inQuotation) inQuotation = false;
+			else if (!inApostrophe && !inQuotation) inQuotation = true;
+		}
+
+		// printf("i: %d\tc: %c\r\n", i, c);
+		// printf("In Apostrophe: %d\r\n", inApostrophe);
+		// printf("In Quotation: %d\r\n\n", inQuotation);
+
+		if (expectingCommand && !isspace(c)) expectingCommand = false;
+		else if (!strcmp(&line[i], "&&") && !inQuotation && !inApostrophe) {
+			expectingCommand = true;
+			i++;	// only increment by one as end of loop will add the additional 1
+		}
+	}
+
+	if (inApostrophe) return TOKEN_MISSING_APOSTROPHE;
+	if (inQuotation) return TOKEN_MISSING_QUOTATION;
+	if (expectingCommand) return TOKEN_MISSING_COMMAND;
+	return TOKEN_COMPLETE;
 }
 
 /*
