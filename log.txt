@@ -1,0 +1,6 @@
+Terminal Window Size: col=20	row=24
+Global Cursor Position: col=11	row=23
+Cursor Index: 0
+Cursor Boundary: 0
+Buffer String: |
+

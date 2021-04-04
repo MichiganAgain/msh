@@ -8,16 +8,21 @@
 
 #define TERM_ESCAPE_CHAR 0x1b
 
+#define TERM_CTRL_C 3
 #define TERM_KEY_EOF 4
 #define TERM_KEY_TAB 9
 #define TERM_KEY_DELETE 127
 #define TERM_KEY_ENTER 13
 
-#define term_cursor_left(x) printf("\x1b[%dD", x)
+#define term_cursor_up(x) printf("\x1b[%dA", x)
+#define term_cursor_down(x) printf("\x1b[%dB", x)
 #define term_cursor_right(x) printf("\x1b[%dC", x)
+#define term_cursor_left(x) printf("\x1b[%dD", x)
 #define term_erase_line() printf("\x1b[K")
 #define term_get_cursor_pos() printf("\x1b[6n")
 #define term_set_cursor_pos(row, col) printf("\x1b[%d;%dH", row, col)
+#define term_cursor_hide() printf("\x1b[?25l")
+#define term_cursor_show() printf("\x1b[?25h")
 
 typedef struct term_terminalState {
 	int width, height;

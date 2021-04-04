@@ -37,6 +37,8 @@ void msh_start(char* envp[]) {
 
 	// printf("COMPLETE: %d COMMAND: %d APOSTROPHE: %d QUOTATION: %d\r\n", TOKEN_COMPLETE, TOKEN_MISSING_COMMAND, TOKEN_MISSING_APOSTROPHE, TOKEN_MISSING_QUOTATION);
 
+	logFile = fopen("log.txt", "w");
+
     msh_loop();
     msh_clean();
 }
@@ -111,28 +113,41 @@ void msh_loop() {
     input buffer on the terminal
 */
 static void msh_redraw(char* line) {
-	// term_set_cursor_pos(previousCursorState.row, previousCursorState.column);
-    int cursorShifts = 0;
-    char* originalLine = line;
+	term_cursor_hide();
+	term_getWindowSize(&terminalWindowSize);
+	term_getCursorPosition(&globalCursorState);
+	
+	int savedCursorColumn = globalCursorState.column;
+	int cursorFalls = 0;
     while (*line != '\0') {
-        if (!iscntrl(*line)) cursorShifts++;
-        line++;
+		term_getCursorPosition(&globalCursorState);
+		write(STDIN_FILENO, line++, 1);
+		if (globalCursorState.column == terminalWindowSize.column) {
+			printf("\r\n");
+			cursorFalls++;
+		}
     }
 
-    printf("%s", originalLine);
     term_erase_line(); // redundant when adding a character, necessary when erasing
-    if (cursorShifts > 0) term_cursor_left(cursorShifts);
+	term_getCursorPosition(&globalCursorState);
+	int cursorColumnDiff = globalCursorState.column - savedCursorColumn;
+
+	if (cursorFalls > 0) {
+		term_cursor_up(cursorFalls);
+	}
+	if (cursorColumnDiff > 0) term_cursor_left(cursorColumnDiff);
+	else if (cursorColumnDiff < 0) term_cursor_right(cursorColumnDiff);
+
+	term_cursor_show();
 }
 
 /*
-    Read from file descriptor until a newline is encountered, in which case return.
-    If user enters control character, then handle it.
+	Return a complete token that can contain sub-tokens
 */
 char* msh_readinput() {
-    int internalCursorIndex = 0, cursorBoundaryIndex = 0;
 	int tokenStatus;
-	string input;
-	string_initialise(&input);
+	struct bufferState internalBufferState;
+	msh_initialiseBufferState(&internalBufferState);
     
 	msh_printPrompt(MSH_PROMPT_DEFAULT);
     bool readLoop = true;
@@ -141,108 +156,135 @@ char* msh_readinput() {
         size_t numRead = read(STDIN_FILENO, &c, 1);
 
         if (numRead <= 0) continue;
-		int status = msh_handleKey(&input, c, &internalCursorIndex, &cursorBoundaryIndex);
+		int status = msh_handleKey(&internalBufferState, c);
 		switch (status) {
 			case EOF_PRESSED:
-				string_free(&input);
+				msh_freeBufferStateInternals(&internalBufferState);
 				return NULL;
 			case TOKEN_COMPLETE:
 				readLoop = false;
+				break;
+			case RESET_INPUT:
+				break;
 		}
 		// printf("Character val: %d\r\n", c);
 
         fflush(stdin);	// flush stdin to get rid of any redundant characters
     }
-	char* inputStringBuffer = string_copyToBuffer(&input);
-	// printf("Command: %s\r\n", inputStringBuffer);
-	string_free(&input);
+	char* inputStringBuffer = string_copyToBuffer(&(internalBufferState.input));
+	msh_freeBufferStateInternals(&internalBufferState);
 
     return inputStringBuffer;
 }
 
-int msh_handleKey(struct string* input, char c, int* internalCursorIndex, int* cursorBoundaryIndex) {
-	if (!iscntrl(c)) {
-		term_getWindowSize(&terminalWindowSize);
-		term_getCursorPosition(&globalCursorState);
-		string_insertCharAt(input, c, *internalCursorIndex);
-		msh_redraw(&(input->string[*internalCursorIndex]));
-		(*internalCursorIndex)++;
-		if (globalCursorState.column >= terminalWindowSize.column) printf("\r\n");
-		else term_cursor_right(1);
+int msh_handleKey(struct bufferState* internalBufferState, char c) {
+	int status;
+	if (!iscntrl(c)) status =  msh_handleNonControl(internalBufferState, c);
+	else if (c == '\x1b') status = msh_handleEscapeSequence(internalBufferState, c);  // Handle escape sequence
+	status = msh_handleControlCode(internalBufferState, c);	// Characters such as tab or enter etc
+
+	msh_writeBufferToLog(internalBufferState, logFile);
+
+	return status;
+}
+
+int msh_handleNonControl(struct bufferState* internalBufferState, char c) {
+	string_insertCharAt(&(internalBufferState->input), c, internalBufferState->cursorIndex);
+
+	term_getWindowSize(&terminalWindowSize);
+	term_getCursorPosition(&globalCursorState);
+	int savedCursorColumn = globalCursorState.column;
+
+	msh_redraw(&(internalBufferState->input.string[internalBufferState->cursorIndex]));
+	
+	term_getCursorPosition(&globalCursorState);
+	if (globalCursorState.column == terminalWindowSize.column) printf("\r\n");
+	else term_cursor_right(1);
+	(internalBufferState->cursorIndex)++;
+	
+	return NON_CONTROL_PRESSED;
+}
+
+int msh_handleEscapeSequence(struct bufferState* internalBufferState, char c) {
+	int key = term_getEscapeKey(c);
+	term_getWindowSize(&terminalWindowSize);
+	term_getCursorPosition(&globalCursorState);
+	switch (key) {
+		case TERM_ESCAPE_CHAR:
+			break;
+		case TERM_ARROW_UP:
+			break;
+		case TERM_ARROW_RIGHT:
+			if (internalBufferState->cursorIndex < internalBufferState->input.freeIndex) {
+				if (globalCursorState.column >= terminalWindowSize.column) printf("\r\n");
+				else term_cursor_right(1);
+				(internalBufferState->cursorIndex)++;
+			}
+			break;
+		case TERM_ARROW_DOWN:
+			break;
+		case TERM_ARROW_LEFT:
+			if (internalBufferState->cursorIndex > internalBufferState->cursorMinBoundary) {
+				if (globalCursorState.column == 1) term_set_cursor_pos(globalCursorState.row - 1, terminalWindowSize.column);
+				else term_cursor_left(1);
+				(internalBufferState->cursorIndex)--;
+			}
+			break;
+	}
+
+	return UNKNOWN_KEY_PRESSED;
+}
+
+int msh_handleControlCode(struct bufferState* internalBufferState, char c) {
+	term_getWindowSize(&terminalWindowSize);
+	term_getCursorPosition(&globalCursorState);
+	int tokenStatus;
+	// printf("Code: %d\r\n", c);
+	switch (c) {
+		case TERM_KEY_EOF:
+			return EOF_PRESSED;
+		case TERM_KEY_DELETE:
+			if (internalBufferState->cursorIndex > internalBufferState->cursorMinBoundary) {
+				if (globalCursorState.column == 1) term_set_cursor_pos(globalCursorState.row - 1, terminalWindowSize.column);
+				else term_cursor_left(1);
+				(internalBufferState->cursorIndex)--;
+				string_erase(&(internalBufferState->input), internalBufferState->cursorIndex, 1);
+				msh_redraw(&(internalBufferState->input.string[internalBufferState->cursorIndex]));
+			}
+			break;
+		case TERM_KEY_ENTER:
+			printf("\r\n");
+			tokenStatus = msh_getTokenStatus(internalBufferState->input.string);
+			// printf("Token: %s\r\n", input.string);
+			// printf("Token Status: %d\r\n", tokenStatus);
+			switch (tokenStatus) {
+				case TOKEN_MISSING_APOSTROPHE:
+					msh_printPrompt(MSH_PROMPT_APOSTROPHE);
+					string_appendChar(&(internalBufferState->input), '\n');
+					break;
+				case TOKEN_MISSING_QUOTATION:
+					msh_printPrompt(MSH_PROMPT_QUOTATION);
+					string_appendChar(&(internalBufferState->input), '\n');
+					break;
+				case TOKEN_MISSING_COMMAND:
+					msh_printPrompt(MSH_PROMPT_COMMAND);
+					break;
+				case TOKEN_COMPLETE:
+					return TOKEN_COMPLETE;
+			}
+
+			internalBufferState->cursorIndex = internalBufferState->cursorMinBoundary = internalBufferState->input.freeIndex;
+			return ENTER_PRESSED;
+
+		case TERM_KEY_TAB:
+			break;
 		
-		return NON_CONTROL_PRESSED;
+		case TERM_CTRL_C:
+			
+			printf("\r\n");
+			msh_printPrompt(MSH_PROMPT_DEFAULT);
 	}
-	else if (c == '\x1b') {  // Handle escape sequence
-		int key = term_getEscapeKey(c);
-		term_getWindowSize(&terminalWindowSize);
-		term_getCursorPosition(&globalCursorState);
-		switch (key) {
-			case TERM_ESCAPE_CHAR:
-				break;
-			case TERM_ARROW_UP:
-				break;
-			case TERM_ARROW_RIGHT:
-				if (*internalCursorIndex < input->freeIndex) {
-					if (globalCursorState.column >= terminalWindowSize.column) printf("\r\n");
-					else term_cursor_right(1);
-					(*internalCursorIndex)++;
-				}
-				break;
-			case TERM_ARROW_DOWN:
-				break;
-			case TERM_ARROW_LEFT:
-				if (*internalCursorIndex > *cursorBoundaryIndex) {
-					term_cursor_left(1);
-					(*internalCursorIndex)--;
-				}
-				break;
-		}
-	}
-	else {
-		term_getWindowSize(&terminalWindowSize);
-		term_getCursorPosition(&globalCursorState);
-		int tokenStatus;
-		switch (c) {
-			case TERM_KEY_EOF:
-				return EOF_PRESSED;
-			case TERM_KEY_DELETE:
-				if (*internalCursorIndex > *cursorBoundaryIndex) {
-					if (globalCursorState.column == 1) term_set_cursor_pos(globalCursorState.row - 1, terminalWindowSize.column);
-					else term_cursor_left(1);
-					(*internalCursorIndex)--;
-					string_erase(input, *internalCursorIndex, 1);
-					msh_redraw(&(input->string[*internalCursorIndex]));
-				}
-				break;
-			case TERM_KEY_ENTER:
-				printf("\r\n");
-				tokenStatus = msh_getTokenStatus(input->string);
-				// printf("Token: %s\r\n", input.string);
-				// printf("Token Status: %d\r\n", tokenStatus);
-				switch (tokenStatus) {
-					case TOKEN_MISSING_APOSTROPHE:
-						msh_printPrompt(MSH_PROMPT_APOSTROPHE);
-						string_appendChar(input, '\n');
-						break;
-					case TOKEN_MISSING_QUOTATION:
-						msh_printPrompt(MSH_PROMPT_QUOTATION);
-						string_appendChar(input, '\n');
-						break;
-					case TOKEN_MISSING_COMMAND:
-						msh_printPrompt(MSH_PROMPT_COMMAND);
-						break;
-					case TOKEN_COMPLETE:
-						return TOKEN_COMPLETE;
-				}
 
-				*internalCursorIndex = *cursorBoundaryIndex = input->freeIndex;
-				return ENTER_PRESSED;
-
-			case TERM_KEY_TAB:
-				
-				break;
-		}
-	}
 	return UNKNOWN_KEY_PRESSED;
 }
 
@@ -464,10 +506,40 @@ static void msh_execute(char** tokens) {
     term_setTerm(modifiedTerm);
 }
 
+static void msh_initialiseBufferState(struct bufferState* bs) {
+	string_initialise(&(bs->input));
+	bs->cursorIndex = 0;
+	bs->cursorMinBoundary = 0;
+}
+
+static void msh_freeBufferStateInternals(struct bufferState* bs) {
+	string_free(&(bs->input));
+}
+
+static void msh_writeBufferToLog(struct bufferState* bs, FILE* log) {
+	term_getWindowSize(&terminalWindowSize);
+	term_getCursorPosition(&globalCursorState);
+
+	fprintf(log, "Terminal Window Size: col=%d\trow=%d\n", terminalWindowSize.column, terminalWindowSize.row);
+	fprintf(log, "Global Cursor Position: col=%d\trow=%d\n", globalCursorState.column, globalCursorState.row);
+	fprintf(log, "Cursor Index: %d\n", bs->cursorIndex);
+	fprintf(log, "Cursor Boundary: %d\n", bs->cursorMinBoundary);
+	fprintf(log, "Buffer String: ");
+
+	fwrite(bs->input.string, sizeof(char), bs->cursorIndex, log);
+	fwrite("|", sizeof(char), 1, log);
+	fwrite(bs->input.string + bs->cursorIndex, sizeof(char), bs->input.freeIndex - bs->cursorIndex, log);
+	fwrite("\n", sizeof(char), 1, log);
+	fwrite("\n", sizeof(char), 1, log);
+
+	fflush(log);
+}
+
 /*
     Free data structures and restore terminal to its original state.
 */
 void msh_clean() {
+	fclose(logFile);
     hm_free(environmentVariableMap);
     hm_free(aliasMap);
     hm_free(builtinMap);

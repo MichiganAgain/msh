@@ -22,12 +22,19 @@ static struct hm_hashMap* builtinMap;
 static struct term_position globalCursorState;
 static struct term_position terminalWindowSize;
 
+FILE* logFile;
+
 enum inputStatus {ENTER_PRESSED, EOF_PRESSED, UNKNOWN_KEY_PRESSED, NON_CONTROL_PRESSED,
 					CONTROL_PRESSED};
 
 enum tokenStatus {TOKEN_COMPLETE, TOKEN_MISSING_COMMAND, TOKEN_MISSING_APOSTROPHE,
-					TOKEN_MISSING_BACKTICK, TOKEN_MISSING_QUOTATION};
+					TOKEN_MISSING_BACKTICK, TOKEN_MISSING_QUOTATION, RESET_INPUT};
 
+typedef struct bufferState {
+	struct string input;
+	int cursorIndex;
+	int cursorMinBoundary;
+} bufferState;
 
 // initialise data structures, set non canonical buffering for terminal and program
 void msh_start(char* envp[]);
@@ -44,7 +51,10 @@ void msh_loop();
 static void msh_redraw(char* line);
 // readline from user input essentially until return key pressed
 char* msh_readinput();
-int msh_handleKey(struct string* input, char c, int* cursorIndex, int* cursorBoundary);
+int msh_handleKey(struct bufferState* internalBufferState, char c);
+int msh_handleNonControl(struct bufferState* internalBufferState, char c);
+int msh_handleEscapeSequence(struct bufferState* internalBufferState, char c);
+int msh_handleControlCode(struct bufferState* internalBufferState, char c);
 // prints prompt to tell user to type
 static void msh_printPrompt(char* prompt);
 // Extracts token from delimited line
@@ -53,9 +63,12 @@ static char* msh_extractToken(char** line);
 static char** msh_parse(char* line);
 // Returns true if a line contains >= 1 valid tokens
 static int msh_getTokenStatus(char* line);
-static void msh_execvpe(char* execFile, char* argv[], char* evnp[]);
+static void msh_execvpe(char* execFile, char* argv[], char* envp[]);
 // executes the command stored in the first token, with the remainders given as arguments
 static void msh_execute(char** tokens);
+static void msh_initialiseBufferState(struct bufferState* bs);
+static void msh_freeBufferStateInternals(struct bufferState* bs);
+static void msh_writeBufferToLog(struct bufferState* bs, FILE* log);
 void msh_clean();
 
 struct list_list* msh_generateEnvironmentTokens();
